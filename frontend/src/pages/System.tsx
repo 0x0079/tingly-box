@@ -4,7 +4,7 @@ import { PageLayout } from '@/components/PageLayout';
 import UnifiedCard from '@/components/UnifiedCard';
 import { Logout } from '@mui/icons-material';
 import { Refresh as RefreshIcon } from '@mui/icons-material';
-import { IconCircleCheck, IconCircleX, IconInfoCircle, IconKey, IconLock, IconStar, IconLicense, IconBrandGithub } from '@tabler/icons-react';
+import { IconCircleCheck, IconCircleX, IconInfoCircle, IconKey, IconLock, IconStar, IconLicense, IconBrandGithub, IconLanguage } from '@tabler/icons-react';
 import { Box, CircularProgress, IconButton, Link, Stack, Tooltip, Typography, Chip } from '@mui/material';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -14,7 +14,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/services/api';
 
 const System = () => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const { currentVersion, hasUpdate, latestVersion, showUpdateDialog } = useVersion();
     const { isHealthy, checking, checkHealth } = useHealth();
     const { logout: authLogout } = useAuth();
@@ -29,6 +29,17 @@ const System = () => {
         setTimeout(() => {
             window.location.href = '/login';
         }, 500);
+    };
+
+    const changeLanguage = (lng: string) => {
+        i18n.changeLanguage(lng);
+        // Save language preference to localStorage
+        localStorage.setItem('i18nextLng', lng);
+        setNotification({
+            open: true,
+            message: t('system.language.saveSuccess'),
+            severity: 'success'
+        });
     };
 
     useEffect(() => {
@@ -87,11 +98,11 @@ const System = () => {
             <CardGrid>
                 {/* Server Status - Simplified one-line-per-status design */}
                 <UnifiedCard
-                    title="Server Status"
+                    title={t('system.serverStatus.title')}
                     size="full"
                     rightAction={
                         <Stack direction="row" spacing={0.5}>
-                            <Tooltip title="Force Logout" arrow>
+                            <Tooltip title={t('system.serverStatus.forceLogout')} arrow>
                                 <IconButton
                                     onClick={handleForceLogout}
                                     size="small"
@@ -103,7 +114,7 @@ const System = () => {
                             <IconButton
                                 onClick={() => { loadServerStatus(); checkHealth(); }}
                                 size="small"
-                                aria-label="Refresh status"
+                                aria-label={t('system.serverStatus.refreshStatus')}
                             >
                                 {checking ? <CircularProgress size={16} /> : <RefreshIcon />}
                             </IconButton>
@@ -121,7 +132,7 @@ const System = () => {
                                         <IconCircleX size={16} style={{ color: 'var(--mui-palette-error-main)' }} />
                                     )}
                                     <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                                        Server
+                                        {t('system.serverStatus.server')}
                                     </Typography>
                                 </Box>
                                 <Box sx={{ flex: 1 }}>
@@ -129,7 +140,7 @@ const System = () => {
                                         {serverStatus.server_running ? t('system.status.running') : t('system.status.stopped')}
                                         {isHealthy && (
                                             <Typography component="span" variant="body2" color="success.main" sx={{ ml: 1 }}>
-                                                · Connected
+                                                · {t('system.status.connected')}
                                             </Typography>
                                         )}
                                     </Typography>
@@ -141,7 +152,7 @@ const System = () => {
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 100 }}>
                                     <IconKey size={14} style={{ color: 'var(--mui-palette-text-secondary)' }} />
                                     <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                                        Keys
+                                        {t('system.status.keys')}
                                     </Typography>
                                 </Box>
                                 <Box sx={{ flex: 1 }}>
@@ -156,7 +167,7 @@ const System = () => {
                                 <Box sx={{ display: 'flex', alignItems: 'center', py: 0.5, gap: 3 }}>
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 100 }}>
                                         <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                                            Uptime
+                                            {t('system.status.uptime')}
                                         </Typography>
                                     </Box>
                                     <Box sx={{ flex: 1 }}>
@@ -172,17 +183,17 @@ const System = () => {
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 100 }}>
                                     <IconLock size={14} style={{ color: 'var(--mui-palette-text-secondary)' }} />
                                     <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                                        Proxy
+                                        {t('system.proxy.label')}
                                     </Typography>
                                 </Box>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1 }}>
                                     {respectEnvProxy !== null && (
                                         <Tooltip
-                                            title={t('system.proxy.respectEnvProxy.helper') + (respectEnvProxy ? ' (enabled)' : ' (disabled)')}
+                                            title={t('system.proxy.respectEnvProxy.helper')}
                                             arrow
                                         >
                                             <Chip
-                                                label={`${respectEnvProxy ? 'System Proxy' : 'Direct'} · ${respectEnvProxy ? 'On' : 'Off'}`}
+                                                label={`${respectEnvProxy ? t('system.proxy.respectEnvProxy.label') : t('common.direct')} · ${respectEnvProxy ? t('common.on') : t('common.off')}`}
                                                 onClick={toggleProxy}
                                                 size="small"
                                                 sx={(theme) => ({
@@ -208,7 +219,7 @@ const System = () => {
 
                 {/* About - Simplified one-line-per-status design */}
                 <UnifiedCard
-                    title="About"
+                    title={t('system.about.title')}
                     size="full"
                 >
                     <Stack spacing={1.5}>
@@ -217,7 +228,7 @@ const System = () => {
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 100 }}>
                                 <IconInfoCircle size={14} style={{ color: 'var(--mui-palette-text-secondary)' }} />
                                 <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                                    Version
+                                    {t('system.about.version')}
                                 </Typography>
                             </Box>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1 }}>
@@ -252,7 +263,7 @@ const System = () => {
                                         >
                                             <IconStar size={16} />
                                             <Typography variant="caption" color={import.meta.env.DEV && !hasUpdate ? 'success.main' : 'info.main'}>
-                                                {hasUpdate ? `${latestVersion} available` : 'Dev Mode'}
+                                                {hasUpdate ? `${latestVersion} ${t('system.about.available')}` : t('system.about.devMode')}
                                             </Typography>
                                         </Box>
                                     </Tooltip>
@@ -265,7 +276,7 @@ const System = () => {
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 100 }}>
                                 <IconLicense size={16} style={{ color: 'text.secondary' }} />
                                 <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                                    License
+                                    {t('system.about.license')}
                                 </Typography>
                             </Box>
                             <Box sx={{ flex: 1 }}>
@@ -280,7 +291,7 @@ const System = () => {
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 100 }}>
                                 <IconBrandGithub size={16} style={{ color: 'text.secondary' }} />
                                 <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                                    GitHub
+                                    {t('system.about.github')}
                                 </Typography>
                             </Box>
                             <Box sx={{ flex: 1 }}>
@@ -297,14 +308,68 @@ const System = () => {
                     </Stack>
                 </UnifiedCard>
 
+                {/* Language Settings */}
+                <UnifiedCard
+                    title={t('system.language.title')}
+                    size="full"
+                >
+                    <Stack spacing={1.5}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', py: 0.5, gap: 3 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 100 }}>
+                                <IconLanguage size={16} style={{ color: 'var(--mui-palette-text-secondary)' }} />
+                                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                                    {t('system.language.description')}
+                                </Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
+                                <Chip
+                                    label={t('system.language.en')}
+                                    onClick={() => changeLanguage('en')}
+                                    size="small"
+                                    sx={(theme) => ({
+                                        bgcolor: i18n.language === 'en' ? 'primary.main' : 'action.hover',
+                                        color: i18n.language === 'en' ? 'primary.contrastText' : 'text.primary',
+                                        fontWeight: i18n.language === 'en' ? 600 : 400,
+                                        border: i18n.language === 'en' ? 'none' : '1px solid',
+                                        borderColor: 'divider',
+                                        cursor: 'pointer',
+                                        '&:hover': {
+                                            bgcolor: i18n.language === 'en' ? 'primary.dark' : 'action.selected',
+                                        },
+                                    })}
+                                />
+                                <Chip
+                                    label={t('system.language.zh')}
+                                    onClick={() => changeLanguage('zh')}
+                                    size="small"
+                                    sx={(theme) => ({
+                                        bgcolor: i18n.language === 'zh' ? 'primary.main' : 'action.hover',
+                                        color: i18n.language === 'zh' ? 'primary.contrastText' : 'text.primary',
+                                        fontWeight: i18n.language === 'zh' ? 600 : 400,
+                                        border: i18n.language === 'zh' ? 'none' : '1px solid',
+                                        borderColor: 'divider',
+                                        cursor: 'pointer',
+                                        '&:hover': {
+                                            bgcolor: i18n.language === 'zh' ? 'primary.dark' : 'action.selected',
+                                        },
+                                    })}
+                                />
+                                <Typography variant="caption" sx={{ color: 'text.secondary', ml: 1 }}>
+                                    {t('system.language.current')}: {i18n.language === 'en' ? 'English' : '中文'}
+                                </Typography>
+                            </Box>
+                        </Box>
+                    </Stack>
+                </UnifiedCard>
+
                 {/* Global Experimental Features */}
                 <UnifiedCard
-                    title="Global Experimental Features"
+                    title={t('system.experimentalFeatures.title')}
                     size="full"
                 >
                     <Stack spacing={1}>
                         <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                            These experimental features apply globally to all scenarios. Individual scenarios can override these settings.
+                            {t('system.experimentalFeatures.description')}
                         </Typography>
                         <GlobalExperimentalFeatures />
                     </Stack>
