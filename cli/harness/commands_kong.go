@@ -1,8 +1,11 @@
-//go:build kong
+//go:build !legacy
 
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 // MatrixKong runs protocol validation matrix tests
 type MatrixKong struct {
@@ -10,7 +13,7 @@ type MatrixKong struct {
 	Sources    []string `kong:"flag,name='source',help='Source protocols'"`
 	Targets    []string `kong:"flag,name='target',help='Target protocols'"`
 	Streaming  bool     `kong:"flag,name='streaming',help='Run only streaming tests'"`
-	NonStream  bool     `kong:"flag,name='non-stream',help='Run only non-streaming tests'"`
+	NonStream  bool     `kong:"flag,name='non-streaming',help='Run only non-streaming tests'"`
 	JsonOutput bool     `kong:"flag,name='json',help='JSON output'"`
 	Verbose    []bool   `kong:"flag,name='verbose',short='v',help='Verbose level'"`
 	RecordDir  string   `kong:"flag,name='record-dir',help='Recording directory'"`
@@ -40,7 +43,7 @@ func buildArgsFromMatrix(m *MatrixKong) []string {
 		args = append(args, "--streaming")
 	}
 	if m.NonStream {
-		args = append(args, "--non-stream")
+		args = append(args, "--non-streaming")
 	}
 	if m.JsonOutput {
 		args = append(args, "--json")
@@ -62,10 +65,16 @@ func buildArgsFromMatrix(m *MatrixKong) []string {
 
 // AgentKong runs agent e2e tests
 type AgentKong struct {
-	Mock      bool   `kong:"flag,name='mock',help='Use virtual upstream provider'"`
-	Config    string `kong:"flag,name='config',help='Config file for real providers'"`
-	Timeout   int    `kong:"flag,name='timeout',short='t',help='Timeout in seconds'"`
-	AgentType string `kong:"arg,optional,help='Agent type (claude, codex, opencode, batch)'"`
+	Mock      bool          `kong:"flag,name='mock',help='Use virtual upstream provider'"`
+	Config    string        `kong:"flag,name='config',help='Config file for real providers'"`
+	Prompt    string        `kong:"flag,name='prompt',help='Prompt to send (overrides positional and default)'"`
+	Summary   string        `kong:"flag,name='summary',default='harness-summary.csv',help='Path to CSV summary file'"`
+	OutputDir string        `kong:"flag,name='output-dir',help='Directory for full output files (default: harness-output/)'"`
+	Resume    string        `kong:"flag,name='resume',help='Resume from previous run: skip recorded (agent,entry) pairs'"`
+	Filter    []string      `kong:"flag,name='filter',help='Only run entries whose name matches (real-provider mode)'"`
+	Timeout   time.Duration `kong:"flag,name='timeout',short='t',default='2m',help='Per-entry timeout (e.g. 30s, 2m). 0 disables.'"`
+	AgentType string        `kong:"arg,optional,help='Agent type (claude, codex, opencode, batch)'"`
+	Args      []string      `kong:"arg,optional,help='Optional prompt as positional args'"`
 }
 
 func (a *AgentKong) Run() error {
@@ -74,15 +83,29 @@ func (a *AgentKong) Run() error {
 	if a.AgentType != "" {
 		args = append(args, a.AgentType)
 	}
+	args = append(args, a.Args...)
 	if a.Mock {
 		args = append(args, "--mock")
 	}
 	if a.Config != "" {
 		args = append(args, "--config", a.Config)
 	}
-	if a.Timeout > 0 {
-		args = append(args, "--timeout", fmt.Sprintf("%d", a.Timeout))
+	if a.Prompt != "" {
+		args = append(args, "--prompt", a.Prompt)
 	}
+	if a.Summary != "" {
+		args = append(args, "--summary", a.Summary)
+	}
+	if a.OutputDir != "" {
+		args = append(args, "--output-dir", a.OutputDir)
+	}
+	if a.Resume != "" {
+		args = append(args, "--resume", a.Resume)
+	}
+	for _, f := range a.Filter {
+		args = append(args, "--filter", f)
+	}
+	args = append(args, "--timeout", a.Timeout.String())
 	cmd.SetArgs(args)
 	return cmd.Execute()
 }
@@ -94,7 +117,7 @@ type ProviderKong struct {
 }
 
 func (p *ProviderKong) Run() error {
-	return p.List.Run()
+	return fmt.Errorf("provider tests not yet implemented - see Phase 3 in specification")
 }
 
 // ProviderTestKong runs provider tests

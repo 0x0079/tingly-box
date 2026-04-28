@@ -1,7 +1,6 @@
-//go:build kong
+//go:build !legacy
 
-// Kong version of main - for testing migration
-// Build with: go build -tags kong ./cli/tingly-box
+// Default Kong-based CLI. Build the legacy Cobra CLI with: go build -tags legacy ./cli/tingly-box
 
 package main
 
@@ -44,7 +43,7 @@ type CLI struct {
 	Agent command.AgentCmdKong `kong:"cmd,help='Agent configuration'"`
 
 	// OAuth
-	OAuth command.OAuthCmdKong `kong:"cmd,help='OAuth authentication'"`
+	OAuth command.OAuthCmdKong `kong:"cmd,name='oauth',help='OAuth authentication'"`
 
 	// Import/Export
 	Export command.ExportCmdKong `kong:"cmd,help='Export configuration'"`
@@ -58,13 +57,19 @@ type CLI struct {
 	Quota      command.QuotaCmdKong      `kong:"cmd,help='Quota information'"`
 	Remote     command.RemoteCmdKong     `kong:"cmd,help='Remote control'"`
 	Quickstart command.QuickstartCmdKong `kong:"cmd,help='Guided setup'"`
-	MCP        command.MCPCmdKong        `kong:"cmd,help='MCP builtin server'"`
+	MCPBuiltin command.MCPBuiltinCmdKong `kong:"cmd,name='mcp-builtin',hidden,help='Start the builtin MCP server (internal use)'"`
 
 	// Version
 	Version command.VersionCmdKong `kong:"cmd,help='Show version'"`
 }
 
 func main() {
+	command.BuildVersion = version
+	command.BuildGitCommit = gitCommit
+	command.BuildBuildTime = buildTime
+	command.BuildGoVersion = goVersion
+	command.BuildPlatform = platform
+
 	var cli CLI
 
 	// Parse CLI

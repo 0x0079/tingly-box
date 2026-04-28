@@ -1,4 +1,4 @@
-//go:build kong
+//go:build !legacy
 
 package command
 
@@ -111,13 +111,25 @@ func (r *RestartCmdKong) Run(appManager *AppManager) error {
 	return startServer(appManager, opts)
 }
 
+// Build information set by cli/tingly-box/main_kong.go at startup.
+var (
+	BuildVersion   = "dev"
+	BuildGitCommit = "unknown"
+	BuildBuildTime = "unknown"
+	BuildGoVersion = "unknown"
+	BuildPlatform  = "unknown"
+)
+
 // VersionCmdKong is the Kong version of version command
 type VersionCmdKong struct{}
 
 func (v *VersionCmdKong) Run(appManager *AppManager) error {
-	appConfig := appManager.AppConfig()
 	fmt.Printf("Tingly Box CLI\n")
-	fmt.Printf("Version:    %s\n", appConfig.GetVersion())
+	fmt.Printf("Version:    %s\n", BuildVersion)
+	fmt.Printf("Git Commit: %s\n", BuildGitCommit)
+	fmt.Printf("Build Time: %s\n", BuildBuildTime)
+	fmt.Printf("Go Version: %s\n", BuildGoVersion)
+	fmt.Printf("Platform:   %s\n", BuildPlatform)
 	return nil
 }
 
