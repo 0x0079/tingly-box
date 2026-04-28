@@ -31,6 +31,20 @@ type Bot struct {
 	messageIDMap map[string]int // chatID -> last message ID
 }
 
+type MenuButtonType string
+
+const (
+	MenuButtonTypeDefault  MenuButtonType = "default"
+	MenuButtonTypeCommands MenuButtonType = "commands"
+	MenuButtonTypeWebApp   MenuButtonType = "web_app"
+)
+
+type MenuButtonConfig struct {
+	Type MenuButtonType
+	Text string
+	URL  string
+}
+
 // NewTelegramBot creates a new Telegram bot
 func NewTelegramBot(config *core.Config) (*Bot, error) {
 	if err := config.Validate(); err != nil {
@@ -111,9 +125,7 @@ func (b *Bot) Connect(ctx context.Context) error {
 	b.api.RegisterHandler(tgbot.HandlerTypeMessageText, "", tgbot.MatchTypePrefix, b.handleMessageUpdate)
 	b.api.RegisterHandler(tgbot.HandlerTypeCallbackQueryData, "", tgbot.MatchTypePrefix, b.handleCallbackQueryUpdate)
 
-	b.UpdateConnected(true)
-	b.UpdateAuthenticated(true)
-	b.EmitConnected()
+	b.MarkConnected(true)
 
 	// Get bot info
 	me, err := b.api.GetMe(b.ctx)
@@ -123,8 +135,7 @@ func (b *Bot) Connect(ctx context.Context) error {
 		b.Logger().Info("Telegram bot connected: @%s", me.Username)
 	}
 
-	b.UpdateReady(true)
-	b.EmitReady()
+	b.MarkReady()
 
 	// Start receiving messages
 	b.wg.Add(1)
@@ -187,9 +198,7 @@ func (b *Bot) Disconnect(ctx context.Context) error {
 
 	b.wg.Wait()
 
-	b.UpdateConnected(false)
-	b.UpdateReady(false)
-	b.EmitDisconnected()
+	b.MarkDisconnected()
 	b.Logger().Info("Telegram bot disconnected")
 
 	return nil
@@ -288,7 +297,7 @@ func (b *Bot) EditMessage(ctx context.Context, messageID string, text string) er
 }
 
 // EditMessageWithKeyboard edits a message with text and inline keyboard
-func (b *Bot) EditMessageWithKeyboard(ctx interface{}, chatID string, messageID string, text string, keyboard interface{}) error {
+func (b *Bot) EditMessageWithKeyboard(ctx interface{}, chatID string, messageID string, text string, keyboard *models.InlineKeyboardMarkup) error {
 	if err := b.EnsureReady(); err != nil {
 		return err
 	}
@@ -313,11 +322,7 @@ func (b *Bot) EditMessageWithKeyboard(ctx interface{}, chatID string, messageID 
 	}
 
 	// Set keyboard if provided
-	if keyboard != nil {
-		if kb, ok := keyboard.(models.InlineKeyboardMarkup); ok {
-			params.ReplyMarkup = &kb
-		}
-	}
+	params.ReplyMarkup = keyboard
 
 	_, err = b.api.EditMessageText(b.ctx, params)
 	if err != nil {
@@ -607,68 +612,37 @@ func (b *Bot) ResolveChatID(input string) (string, error) {
 	return "", fmt.Errorf("invalid input format: %s (expected chat ID, @username, or invite link)", input)
 }
 
-// SetCommandList sets the bot's command list (shown in the menu button)
-// Accepts either []models.BotCommand or []map[string]string
-func (b *Bot) SetCommandList(commands interface{}) error {
+// SetCommandList sets the bot's command list (shown in the menu button).
+func (b *Bot) SetCommandList(commands []models.BotCommand) error {
 	if err := b.EnsureReady(); err != nil {
 		return err
 	}
 
-	var botCommands []models.BotCommand
-
-	switch v := commands.(type) {
-	case []models.BotCommand:
-		botCommands = v
-	case []map[string]string:
-		// Convert from map format to BotCommand
-		botCommands = make([]models.BotCommand, 0, len(v))
-		for _, cmd := range v {
-			botCommands = append(botCommands, models.BotCommand{
-				Command:     cmd["command"],
-				Description: cmd["description"],
-			})
-		}
-	default:
-		return fmt.Errorf("invalid commands type: %T", commands)
-	}
-
 	_, err := b.api.SetMyCommands(b.ctx, &tgbot.SetMyCommandsParams{
-		Commands: botCommands,
+		Commands: commands,
 	})
 	return err
 }
 
-// SetMenuButton sets the menu button for the bot
-// Config can be:
-// - map[string]interface{}{"type": "commands"} - Show commands menu
-// - map[string]interface{}{"type": "web_app", "text": "Text", "url": "https://..."} - Open web app
-// - map[string]interface{}{"type": "default"} - Reset to default
-func (b *Bot) SetMenuButton(config interface{}) error {
+// SetMenuButton sets the menu button for the bot.
+func (b *Bot) SetMenuButton(config MenuButtonConfig) error {
 	if err := b.EnsureReady(); err != nil {
 		return err
 	}
 
 	var menuButton models.InputMenuButton
 
-	switch cfg := config.(type) {
-	case map[string]interface{}:
-		menuType, _ := cfg["type"].(string)
-		switch menuType {
-		case "commands":
-			menuButton = &models.MenuButtonCommands{Type: models.MenuButtonTypeCommands}
-		case "web_app":
-			text, _ := cfg["text"].(string)
-			url, _ := cfg["url"].(string)
-			menuButton = &models.MenuButtonWebApp{
-				Type:   models.MenuButtonTypeWebApp,
-				Text:   text,
-				WebApp: models.WebAppInfo{URL: url},
-			}
-		default:
-			menuButton = &models.MenuButtonDefault{Type: models.MenuButtonTypeDefault}
+	switch config.Type {
+	case MenuButtonTypeCommands:
+		menuButton = &models.MenuButtonCommands{Type: models.MenuButtonTypeCommands}
+	case MenuButtonTypeWebApp:
+		menuButton = &models.MenuButtonWebApp{
+			Type:   models.MenuButtonTypeWebApp,
+			Text:   config.Text,
+			WebApp: models.WebAppInfo{URL: config.URL},
 		}
 	default:
-		menuButton = &models.MenuButtonCommands{Type: models.MenuButtonTypeCommands}
+		menuButton = &models.MenuButtonDefault{Type: models.MenuButtonTypeDefault}
 	}
 
 	_, err := b.api.SetChatMenuButton(b.ctx, &tgbot.SetChatMenuButtonParams{
