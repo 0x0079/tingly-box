@@ -3,8 +3,6 @@ package bot
 import (
 	"errors"
 	"strings"
-
-	"github.com/tingly-dev/tingly-box/internal/remote_control/audit"
 )
 
 // isBindCommand reports whether text is a (well-formed-enough) /bind invocation.
@@ -112,5 +110,3 @@ func (h *BotHandler) auditWarn(action, userID, message string, details map[strin
 	h.audit.Warn(action, userID, "", message, details)
 }
 
-// Compile-time guard so unused imports are flagged early during refactors.
-var _ audit.Level = audit.LevelInfo
