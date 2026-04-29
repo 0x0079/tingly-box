@@ -1,16 +1,22 @@
-//go:build kong
+//go:build !legacy
 
 package command
 
-// QuotaCmdKong is the Kong version of quota command
+// QuotaCmdKong is the Kong version of quota command. The hidden Default
+// subcommand is marked default so `tingly-box quota` (no further args)
+// behaves like `quota list`, matching legacy behavior.
 type QuotaCmdKong struct {
+	Default QuotaDefaultCmdKong `kong:"cmd,name='default',default='1',hidden,help='List all provider quotas (default)'"`
 	List    QuotaListCmdKong    `kong:"cmd,help='List all provider quotas'"`
 	Get     QuotaGetCmdKong     `kong:"cmd,help='Get provider quota details'"`
 	Refresh QuotaRefreshCmdKong `kong:"cmd,help='Refresh provider quota data'"`
 	Summary QuotaSummaryCmdKong `kong:"cmd,help='Show quota summary'"`
 }
 
-func (q *QuotaCmdKong) Run(appManager *AppManager) error {
+// QuotaDefaultCmdKong is the no-subcommand default that runs the list view.
+type QuotaDefaultCmdKong struct{}
+
+func (q *QuotaDefaultCmdKong) Run(appManager *AppManager) error {
 	return runQuotaList(appManager)
 }
 

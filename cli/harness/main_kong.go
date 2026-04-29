@@ -1,4 +1,4 @@
-//go:build kong
+//go:build !legacy
 
 package main
 

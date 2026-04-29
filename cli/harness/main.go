@@ -1,4 +1,4 @@
-//go:build !kong
+//go:build legacy
 
 // Package main provides the CLI harness for protocol validation testing.
 //

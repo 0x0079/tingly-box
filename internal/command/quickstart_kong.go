@@ -1,6 +1,10 @@
-//go:build kong
+//go:build !legacy
 
 package command
+
+import (
+	"github.com/tingly-dev/tingly-box/internal/tui/wizards"
+)
 
 // QuickstartCmdKong runs the guided setup wizard
 type QuickstartCmdKong struct {
@@ -8,5 +12,8 @@ type QuickstartCmdKong struct {
 }
 
 func (q *QuickstartCmdKong) Run(appManager *AppManager) error {
+	if q.UseTUI {
+		return wizards.RunQuickstartWizard(appManager)
+	}
 	return runQuickstart(appManager)
 }
