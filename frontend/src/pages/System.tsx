@@ -240,7 +240,7 @@ const System = () => {
                                         {t('system.proxy.globalProxyUrl.label')}
                                     </Typography>
                                 </Box>
-                                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, flex: 1 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, maxWidth: 380 }}>
                                     <TextField
                                         size="small"
                                         value={globalProxyInput}
