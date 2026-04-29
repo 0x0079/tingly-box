@@ -239,7 +239,8 @@ export default {
         "label": "HTTP/SOCKS Proxy URL (Optional)",
         "placeholder": "http://127.0.0.1:7890 or socks5://127.0.0.1:7890",
         "helper": "Optional: Use a proxy to bypass region restrictions. Saved for future use.",
-        "useGlobal": "Use global proxy ({{url}})"
+        "useGlobal": "Use global proxy ({{url}})",
+        "useGlobalNotSet": "Use global proxy (not configured — set in System Settings)"
       }
     },
     "verification": {

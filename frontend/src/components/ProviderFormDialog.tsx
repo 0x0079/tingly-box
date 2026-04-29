@@ -750,18 +750,21 @@ const ProviderFormDialog = ({
                             placeholder={t('providerDialog.keyName.placeholder')}
                         />
 
-                        {globalProxyUrl && mode === 'add' && (
+                        {mode === 'add' && (
                             <FormControlLabel
                                 control={
                                     <Checkbox
                                         size="small"
                                         checked={useGlobalProxy}
+                                        disabled={!globalProxyUrl}
                                         onChange={(e) => handleUseGlobalProxyChange(e.target.checked)}
                                     />
                                 }
                                 label={
-                                    <Typography variant="body2">
-                                        {t('providerDialog.advanced.proxyUrl.useGlobal', {url: globalProxyUrl})}
+                                    <Typography variant="body2" color={globalProxyUrl ? 'text.primary' : 'text.disabled'}>
+                                        {globalProxyUrl
+                                            ? t('providerDialog.advanced.proxyUrl.useGlobal', {url: globalProxyUrl})
+                                            : t('providerDialog.advanced.proxyUrl.useGlobalNotSet')}
                                     </Typography>
                                 }
                             />
