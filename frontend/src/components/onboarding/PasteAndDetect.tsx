@@ -198,9 +198,9 @@ const PasteAndDetect: React.FC<PasteAndDetectProps> = ({onPick, onManualFill}) =
                                                         primary={
                                                             <Typography
                                                                 variant="body2"
-                                                                sx={{fontFamily: 'monospace'}}
+                                                                sx={{fontFamily: 'monospace', wordBreak: 'break-all'}}
                                                             >
-                                                                {tok.preview}
+                                                                {tok.value}
                                                             </Typography>
                                                         }
                                                         secondary={
