@@ -810,5 +810,28 @@ export default {
       "savedError": "Failed to save MCP configuration"
     },
     "currentConfig": "Current Configuration"
+  },
+  "onboarding": {
+    "title": "Welcome to Tingly Box",
+    "subtitle": "Add your first AI provider to get started. Browse the catalog or paste a config snippet — we’ll figure out the rest.",
+    "hint": "Detection runs locally in the box; pasted text is not sent to any third party.",
+    "tab": {
+      "browse": "Browse providers",
+      "paste": "Paste & detect"
+    },
+    "browse": {
+      "searchPlaceholder": "Search providers",
+      "all": "All",
+      "both": "Both",
+      "empty": "No providers match your filters."
+    },
+    "paste": {
+      "detectButton": "Detect",
+      "manualFill": "Fill in manually",
+      "noMatch": "Could not detect a known provider. You can fill in the form manually."
+    },
+    "candidate": {
+      "useThis": "Use this"
+    }
   }
 };

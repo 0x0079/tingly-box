@@ -1,0 +1,162 @@
+import {useMemo, useState} from 'react';
+import {useTranslation} from 'react-i18next';
+import {
+    Box,
+    Card,
+    CardActionArea,
+    Chip,
+    InputAdornment,
+    Stack,
+    TextField,
+    ToggleButton,
+    ToggleButtonGroup,
+    Typography,
+} from '@mui/material';
+import SearchIcon from '@mui/icons-material/Search';
+import ProviderIcon from '@/components/ProviderIcon';
+import {useProviderTemplates, type UniqueProvider} from '@/services/serviceProviders';
+import type {EnhancedProviderFormData} from '@/components/ProviderFormDialog';
+
+type ProtocolFilter = 'all' | 'openai' | 'anthropic' | 'both';
+
+interface BrowseProvidersProps {
+    onPick: (prefill: EnhancedProviderFormData) => void;
+}
+
+const BrowseProviders: React.FC<BrowseProvidersProps> = ({onPick}) => {
+    const {t} = useTranslation();
+    const providers = useProviderTemplates();
+    const [search, setSearch] = useState('');
+    const [protocolFilter, setProtocolFilter] = useState<ProtocolFilter>('all');
+
+    const filtered = useMemo(() => {
+        const term = search.trim().toLowerCase();
+        return providers.filter(p => {
+            if (term) {
+                const haystack = `${p.name} ${p.alias || ''}`.toLowerCase();
+                if (!haystack.includes(term)) return false;
+            }
+            switch (protocolFilter) {
+                case 'openai':
+                    return p.supportsOpenAI && !p.supportsAnthropic;
+                case 'anthropic':
+                    return p.supportsAnthropic && !p.supportsOpenAI;
+                case 'both':
+                    return p.supportsOpenAI && p.supportsAnthropic;
+                default:
+                    return true;
+            }
+        });
+    }, [providers, search, protocolFilter]);
+
+    const handlePick = (p: UniqueProvider) => {
+        const apiStyle: 'openai' | 'anthropic' = p.supportsOpenAI ? 'openai' : 'anthropic';
+        const apiBase = apiStyle === 'openai' ? p.baseUrlOpenAI || p.baseUrlAnthropic || '' : p.baseUrlAnthropic || p.baseUrlOpenAI || '';
+        const protocols: ('openai' | 'anthropic')[] = [];
+        if (p.supportsOpenAI) protocols.push('openai');
+        if (p.supportsAnthropic) protocols.push('anthropic');
+        onPick({
+            name: p.alias || p.name,
+            apiBase,
+            apiStyle,
+            token: '',
+            enabled: true,
+            protocols,
+            providerBaseUrls: {
+                openai: p.baseUrlOpenAI,
+                anthropic: p.baseUrlAnthropic,
+            },
+        });
+    };
+
+    return (
+        <Box>
+            <Stack direction={{xs: 'column', sm: 'row'}} spacing={2} sx={{mb: 2}}>
+                <TextField
+                    size="small"
+                    fullWidth
+                    placeholder={t('onboarding.browse.searchPlaceholder', {defaultValue: 'Search providers'})}
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    InputProps={{
+                        startAdornment: (
+                            <InputAdornment position="start">
+                                <SearchIcon fontSize="small"/>
+                            </InputAdornment>
+                        ),
+                    }}
+                />
+                <ToggleButtonGroup
+                    size="small"
+                    exclusive
+                    value={protocolFilter}
+                    onChange={(_, v) => v && setProtocolFilter(v)}
+                >
+                    <ToggleButton value="all">{t('onboarding.browse.all', {defaultValue: 'All'})}</ToggleButton>
+                    <ToggleButton value="openai">OpenAI</ToggleButton>
+                    <ToggleButton value="anthropic">Anthropic</ToggleButton>
+                    <ToggleButton value="both">{t('onboarding.browse.both', {defaultValue: 'Both'})}</ToggleButton>
+                </ToggleButtonGroup>
+            </Stack>
+
+            {filtered.length === 0 ? (
+                <Box sx={{py: 6, textAlign: 'center'}}>
+                    <Typography variant="body2" color="text.secondary">
+                        {t('onboarding.browse.empty', {defaultValue: 'No providers match your filters.'})}
+                    </Typography>
+                </Box>
+            ) : (
+                <Box
+                    sx={{
+                        display: 'grid',
+                        gap: 1.5,
+                        gridTemplateColumns: {
+                            xs: '1fr',
+                            sm: 'repeat(2, 1fr)',
+                            md: 'repeat(3, 1fr)',
+                            lg: 'repeat(4, 1fr)',
+                        },
+                    }}
+                >
+                    {filtered.map(p => (
+                        <Card key={p.id} variant="outlined" sx={{borderRadius: 2}}>
+                            <CardActionArea onClick={() => handlePick(p)} sx={{p: 1.5, height: '100%'}}>
+                                <Stack direction="row" spacing={1.5} alignItems="center">
+                                    <ProviderIcon identifier={p.icon || p.id} size={28}/>
+                                    <Box sx={{minWidth: 0}}>
+                                        <Typography
+                                            variant="subtitle2"
+                                            fontWeight={600}
+                                            noWrap
+                                            title={p.alias || p.name}
+                                        >
+                                            {p.alias || p.name}
+                                        </Typography>
+                                        <Stack direction="row" spacing={0.5} sx={{mt: 0.5}}>
+                                            {p.supportsOpenAI && (
+                                                <Chip
+                                                    label="OpenAI"
+                                                    size="small"
+                                                    sx={{height: 18, fontSize: '0.65rem'}}
+                                                />
+                                            )}
+                                            {p.supportsAnthropic && (
+                                                <Chip
+                                                    label="Anthropic"
+                                                    size="small"
+                                                    sx={{height: 18, fontSize: '0.65rem'}}
+                                                />
+                                            )}
+                                        </Stack>
+                                    </Box>
+                                </Stack>
+                            </CardActionArea>
+                        </Card>
+                    ))}
+                </Box>
+            )}
+        </Box>
+    );
+};
+
+export default BrowseProviders;
