@@ -100,11 +100,18 @@ const BrowseProviders: React.FC<BrowseProvidersProps> = ({onPick}) => {
                                 <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="space-between" width="100%">
                                     <Stack direction="row" spacing={1.5} alignItems="center">
                                         <ProviderIcon identifier={p.icon || p.id} size={32}/>
-                                        <Box>
+                                        <Box sx={{minWidth: 0, flex: 1}}>
                                             <Typography
                                                 variant="subtitle2"
                                                 fontWeight={600}
-                                                noWrap
+                                                sx={{
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis',
+                                                    display: '-webkit-box',
+                                                    WebkitLineClamp: 2,
+                                                    WebkitBoxOrient: 'vertical',
+                                                    lineHeight: 1.3,
+                                                }}
                                                 title={p.alias || p.name}
                                             >
                                                 {p.alias || p.name}
