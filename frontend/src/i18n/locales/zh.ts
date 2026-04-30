@@ -828,10 +828,13 @@ export default {
     "paste": {
       "detectButton": "识别",
       "manualFill": "手动填写",
-      "noMatch": "未识别到已知的提供商，可以手动填写表单。"
-    },
-    "candidate": {
-      "useThis": "使用此候选"
+      "noMatch": "没有识别到 URL 或 API Key，可以手动填写。",
+      "pickHint": "选择想用的 URL 和 Token，然后点击「使用所选」。",
+      "urlsTitle": "识别到的 URL",
+      "tokensTitle": "识别到的 Token",
+      "noURL": "未识别到 URL。",
+      "noToken": "未识别到 Token。",
+      "useSelected": "使用所选"
     }
   }
 };

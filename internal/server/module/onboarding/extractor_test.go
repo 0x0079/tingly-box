@@ -6,235 +6,207 @@ import (
 	"testing"
 )
 
-// newTestExtractor builds a RuleExtractor with a small fixed registry covering
-// the providers exercised by the test cases below. Keeping the fixture local
-// avoids coupling the test suite to the live providers.json.
-func newTestExtractor() *RuleExtractor {
-	return &RuleExtractor{templates: []*templateProvider{
-		{
-			ID:              "openai-com",
-			Name:            "OpenAI",
-			Icon:            "openai",
-			VendorFamily:    "openai",
-			CanonicalDomain: "api.openai.com",
-			BaseURLOpenAI:   "https://api.openai.com/v1",
-		},
-		{
-			ID:               "anthropic-com",
-			Name:             "Anthropic",
-			Icon:             "anthropic",
-			VendorFamily:     "anthropic",
-			CanonicalDomain:  "api.anthropic.com",
-			BaseURLAnthropic: "https://api.anthropic.com",
-		},
-		{
-			ID:              "openrouter-ai",
-			Name:            "OpenRouter",
-			Icon:            "openrouter",
-			VendorFamily:    "openrouter",
-			CanonicalDomain: "openrouter.ai",
-			BaseURLOpenAI:   "https://openrouter.ai/api/v1",
-		},
-		{
-			ID:              "deepseek-com",
-			Name:            "DeepSeek",
-			Icon:            "deepseek",
-			VendorFamily:    "deepseek",
-			CanonicalDomain: "api.deepseek.com",
-			BaseURLOpenAI:   "https://api.deepseek.com",
-		},
-		{
-			ID:              "groq-com",
-			Name:            "Groq",
-			Icon:            "groq",
-			VendorFamily:    "groq",
-			CanonicalDomain: "api.groq.com",
-			BaseURLOpenAI:   "https://api.groq.com/openai/v1",
-		},
-	}}
+func newExt() *RuleExtractor { return NewRuleExtractor() }
+
+func contains(haystack []string, needle string) bool {
+	for _, s := range haystack {
+		if s == needle {
+			return true
+		}
+	}
+	return false
 }
 
-func mustTopCandidate(t *testing.T, cands []Candidate) Candidate {
-	t.Helper()
-	if len(cands) == 0 {
-		t.Fatalf("expected at least one candidate, got 0")
+func tokenValues(in []TokenCandidate) []string {
+	out := make([]string, len(in))
+	for i, t := range in {
+		out[i] = t.Value
 	}
-	return cands[0]
+	return out
 }
 
 func TestExtractor_EnvFile(t *testing.T) {
-	ext := newTestExtractor()
 	input := `# .env
 OPENAI_API_KEY=sk-proj-abcdef1234567890abcdef
 OPENAI_BASE_URL=https://api.openai.com/v1
 `
-	cands, warnings, err := ext.Extract(context.Background(), input)
+	d, err := newExt().Extract(context.Background(), input)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(warnings) != 0 {
-		t.Fatalf("did not expect warnings, got %v", warnings)
+	if !contains(d.URLs, "https://api.openai.com/v1") {
+		t.Fatalf("expected URL https://api.openai.com/v1, got %v", d.URLs)
 	}
-	top := mustTopCandidate(t, cands)
-	if top.ProviderID != "openai-com" {
-		t.Fatalf("expected top=openai-com, got %s", top.ProviderID)
+	if !contains(tokenValues(d.Tokens), "sk-proj-abcdef1234567890abcdef") {
+		t.Fatalf("expected sk-proj token in %v", tokenValues(d.Tokens))
 	}
-	if top.APIStyle != "openai" {
-		t.Fatalf("expected api_style=openai, got %s", top.APIStyle)
-	}
-	if !strings.HasPrefix(top.Token, "sk-proj-") {
-		t.Fatalf("expected sk-proj token, got %q", top.Token)
-	}
-	if top.Confidence < 0.9 {
-		t.Fatalf("expected high confidence (>=0.9), got %v", top.Confidence)
+	// OPENAI_BASE_URL should not show up as a token.
+	for _, tok := range d.Tokens {
+		if tok.Source == "env:OPENAI_BASE_URL" {
+			t.Fatalf("OPENAI_BASE_URL leaked into tokens: %v", tok)
+		}
 	}
 }
 
 func TestExtractor_AnthropicCurl(t *testing.T) {
-	ext := newTestExtractor()
 	input := `curl https://api.anthropic.com/v1/messages \
   -H "x-api-key: sk-ant-api03-XYZxyz0123456789ABCDEF" \
   -H "anthropic-version: 2023-06-01" \
-  -H "content-type: application/json" \
-  -d '{"model":"claude-3-5-sonnet-latest","max_tokens":1024,"messages":[{"role":"user","content":"hi"}]}'`
-	cands, warnings, err := ext.Extract(context.Background(), input)
+  -H "content-type: application/json"`
+	d, err := newExt().Extract(context.Background(), input)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(warnings) != 0 {
-		t.Fatalf("did not expect warnings, got %v", warnings)
+	if !contains(d.URLs, "https://api.anthropic.com/v1/messages") {
+		t.Fatalf("expected anthropic URL, got %v", d.URLs)
 	}
-	top := mustTopCandidate(t, cands)
-	if top.ProviderID != "anthropic-com" {
-		t.Fatalf("expected top=anthropic-com, got %s", top.ProviderID)
+	found := false
+	for _, tok := range d.Tokens {
+		if tok.Value == "sk-ant-api03-XYZxyz0123456789ABCDEF" && tok.Source == "x-api-key" {
+			found = true
+		}
 	}
-	if top.APIStyle != "anthropic" {
-		t.Fatalf("expected api_style=anthropic, got %s", top.APIStyle)
-	}
-	if !strings.HasPrefix(top.Token, "sk-ant-") {
-		t.Fatalf("expected sk-ant token, got %q", top.Token)
-	}
-	if top.Confidence < 0.7 {
-		t.Fatalf("expected confidence >=0.7, got %v", top.Confidence)
+	if !found {
+		t.Fatalf("expected x-api-key token, got %v", d.Tokens)
 	}
 }
 
-func TestExtractor_OpenAIDocSnippet(t *testing.T) {
-	ext := newTestExtractor()
-	input := `from openai import OpenAI
-client = OpenAI(api_key="sk-proj-abcdefghijklmnopqrstuvwx")
-resp = client.chat.completions.create(model="gpt-4o", messages=[{"role":"user","content":"hi"}])
-`
-	cands, _, err := ext.Extract(context.Background(), input)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	top := mustTopCandidate(t, cands)
-	if top.ProviderID != "openai-com" {
-		t.Fatalf("expected top=openai-com, got %s", top.ProviderID)
-	}
-	if !strings.HasPrefix(top.Token, "sk-proj-") {
-		t.Fatalf("expected sk-proj token, got %q", top.Token)
-	}
-}
-
-func TestExtractor_OpenRouterDoc(t *testing.T) {
-	ext := newTestExtractor()
+func TestExtractor_BearerHeader(t *testing.T) {
 	input := `curl https://openrouter.ai/api/v1/chat/completions \
-  -H "Authorization: Bearer sk-or-v1-abcdef0123456789abcdef" \
-  -H "Content-Type: application/json"`
-	cands, warnings, err := ext.Extract(context.Background(), input)
+  -H "Authorization: Bearer sk-or-v1-abcdef0123456789abcdef"`
+	d, err := newExt().Extract(context.Background(), input)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(warnings) != 0 {
-		t.Fatalf("did not expect warnings, got %v", warnings)
+	var bearerSrc string
+	for _, tok := range d.Tokens {
+		if tok.Value == "sk-or-v1-abcdef0123456789abcdef" {
+			bearerSrc = tok.Source
+		}
 	}
-	top := mustTopCandidate(t, cands)
-	if top.ProviderID != "openrouter-ai" {
-		t.Fatalf("expected top=openrouter-ai, got %s", top.ProviderID)
-	}
-	if top.APIStyle != "openai" {
-		t.Fatalf("expected openai-style for openrouter, got %s", top.APIStyle)
-	}
-	if !strings.HasPrefix(top.Token, "sk-or-") {
-		t.Fatalf("expected sk-or token, got %q", top.Token)
+	// The same value is matched by both bearer and key_prefix; we keep the
+	// more informative source.
+	if bearerSrc != "bearer" {
+		t.Fatalf("expected source=bearer, got %q (tokens=%v)", bearerSrc, d.Tokens)
 	}
 }
 
-func TestExtractor_ConflictingURLAndKey(t *testing.T) {
-	ext := newTestExtractor()
-	// URL points to anthropic, but key prefix says openrouter — should warn.
-	input := `https://api.anthropic.com/v1/messages
-sk-or-v1-someopenrouterkey0123456789`
-	_, warnings, err := ext.Extract(context.Background(), input)
+func TestExtractor_PlainKey(t *testing.T) {
+	input := `here is my key: sk-ant-api03-justakeynothingelse123456`
+	d, err := newExt().Extract(context.Background(), input)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(warnings) == 0 {
-		t.Fatalf("expected a warning for url/key disagreement, got none")
+	if len(d.Tokens) == 0 {
+		t.Fatalf("expected at least one token, got none")
+	}
+	if d.Tokens[0].Source != "key_prefix" {
+		t.Fatalf("expected key_prefix source, got %q", d.Tokens[0].Source)
+	}
+	if !strings.HasPrefix(d.Tokens[0].Preview, "sk-a") {
+		t.Fatalf("expected masked preview, got %q", d.Tokens[0].Preview)
 	}
 }
 
-func TestExtractor_BareKey(t *testing.T) {
-	ext := newTestExtractor()
-	input := `sk-ant-api03-justakeynothingelse123456`
-	cands, _, err := ext.Extract(context.Background(), input)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	top := mustTopCandidate(t, cands)
-	if top.ProviderID != "anthropic-com" {
-		t.Fatalf("expected anthropic-com from bare key, got %s", top.ProviderID)
-	}
-	if top.BaseURL == "" {
-		t.Fatalf("expected base URL filled in from template, got empty")
-	}
-	if top.Confidence > 0.5 {
-		t.Fatalf("expected lower confidence with single signal, got %v", top.Confidence)
-	}
-}
-
-func TestExtractor_BareURL(t *testing.T) {
-	ext := newTestExtractor()
+func TestExtractor_OnlyURL(t *testing.T) {
 	input := `Try https://api.deepseek.com/v1/chat/completions in your client.`
-	cands, _, err := ext.Extract(context.Background(), input)
+	d, err := newExt().Extract(context.Background(), input)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	top := mustTopCandidate(t, cands)
-	if top.ProviderID != "deepseek-com" {
-		t.Fatalf("expected deepseek-com from URL, got %s", top.ProviderID)
+	if !contains(d.URLs, "https://api.deepseek.com/v1/chat/completions") {
+		t.Fatalf("expected deepseek URL, got %v", d.URLs)
 	}
-	if top.Token != "" {
-		t.Fatalf("expected empty token (none in input), got %q", top.Token)
+	if len(d.Tokens) != 0 {
+		t.Fatalf("expected no tokens, got %v", d.Tokens)
+	}
+}
+
+func TestExtractor_JSONFields(t *testing.T) {
+	input := `{
+  "api_key": "sk-someservice-abcdef1234567890",
+  "base_url": "https://example.com/api/v1"
+}`
+	d, err := newExt().Extract(context.Background(), input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !contains(d.URLs, "https://example.com/api/v1") {
+		t.Fatalf("expected base_url, got %v", d.URLs)
+	}
+	if !contains(tokenValues(d.Tokens), "sk-someservice-abcdef1234567890") {
+		t.Fatalf("expected api_key token, got %v", tokenValues(d.Tokens))
+	}
+}
+
+func TestExtractor_MultipleURLsAndTokensDeduped(t *testing.T) {
+	input := `https://api.openai.com/v1
+https://api.openai.com/v1
+sk-proj-abcdef1234567890ABCDEF
+sk-proj-abcdef1234567890ABCDEF`
+	d, err := newExt().Extract(context.Background(), input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	urlCount := 0
+	for _, u := range d.URLs {
+		if u == "https://api.openai.com/v1" {
+			urlCount++
+		}
+	}
+	if urlCount != 1 {
+		t.Fatalf("expected URL deduped to 1, got %d (%v)", urlCount, d.URLs)
+	}
+	tokCount := 0
+	for _, tok := range d.Tokens {
+		if tok.Value == "sk-proj-abcdef1234567890ABCDEF" {
+			tokCount++
+		}
+	}
+	if tokCount != 1 {
+		t.Fatalf("expected token deduped to 1, got %d (%v)", tokCount, d.Tokens)
+	}
+}
+
+func TestExtractor_PreservesURLPath(t *testing.T) {
+	input := `Endpoint: https://example.com/foo/bar?x=1.`
+	d, err := newExt().Extract(context.Background(), input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := "https://example.com/foo/bar?x=1"
+	if !contains(d.URLs, want) {
+		t.Fatalf("expected %q (trailing punct stripped), got %v", want, d.URLs)
 	}
 }
 
 func TestExtractor_EmptyInput(t *testing.T) {
-	ext := newTestExtractor()
-	cands, warnings, err := ext.Extract(context.Background(), "   ")
+	d, err := newExt().Extract(context.Background(), "   ")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(cands) != 0 || len(warnings) != 0 {
-		t.Fatalf("expected empty result for whitespace input, got cands=%v warnings=%v", cands, warnings)
+	if len(d.URLs) != 0 || len(d.Tokens) != 0 {
+		t.Fatalf("expected empty result, got %+v", d)
 	}
 }
 
-func TestExtractor_LimitsToThreeCandidates(t *testing.T) {
-	ext := newTestExtractor()
-	// Multiple URLs, each matching a different vendor.
-	input := `https://api.openai.com
-https://api.anthropic.com
-https://openrouter.ai
-https://api.deepseek.com
-https://api.groq.com`
-	cands, _, err := ext.Extract(context.Background(), input)
+func TestExtractor_IgnoresShortEnvValues(t *testing.T) {
+	input := `LANG=en_US.UTF-8
+HOME=/root
+PATH=/usr/bin
+OPENAI_API_KEY=sk-proj-abcdef1234567890abcdef`
+	d, err := newExt().Extract(context.Background(), input)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(cands) > 3 {
-		t.Fatalf("expected at most 3 candidates, got %d", len(cands))
+	for _, tok := range d.Tokens {
+		switch tok.Source {
+		case "env:LANG", "env:HOME", "env:PATH":
+			t.Fatalf("unrelated env var leaked in as token: %v", tok)
+		}
+	}
+	// And the real key still made it through.
+	if !contains(tokenValues(d.Tokens), "sk-proj-abcdef1234567890abcdef") {
+		t.Fatalf("expected OPENAI_API_KEY value in tokens, got %v", tokenValues(d.Tokens))
 	}
 }

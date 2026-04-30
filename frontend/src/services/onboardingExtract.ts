@@ -1,21 +1,15 @@
 import TinglyService from "@/bindings";
 
-export interface OnboardingCandidate {
-    provider_id: string;
-    name: string;
-    icon?: string;
-    base_url?: string;
-    api_style?: 'openai' | 'anthropic' | string;
-    token?: string;
-    confidence: number;
-    match_reasons?: string[];
-    protocols?: string[];
+export interface OnboardingTokenCandidate {
+    value: string;
+    preview: string;
+    source: string; // bearer | x-api-key | env:NAME | json:api_key | key_prefix
 }
 
 export interface OnboardingExtractResult {
     success: boolean;
-    candidates: OnboardingCandidate[];
-    warnings: string[];
+    urls: string[];
+    tokens: OnboardingTokenCandidate[];
     error?: string;
 }
 
@@ -56,21 +50,21 @@ export async function extractOnboardingCandidates(input: string): Promise<Onboar
         if (!body?.success) {
             return {
                 success: false,
-                candidates: [],
-                warnings: [],
+                urls: [],
+                tokens: [],
                 error: body?.error?.message || 'Extraction failed',
             };
         }
         return {
             success: true,
-            candidates: body?.data?.candidates ?? [],
-            warnings: body?.data?.warnings ?? [],
+            urls: body?.data?.urls ?? [],
+            tokens: body?.data?.tokens ?? [],
         };
     } catch (err) {
         return {
             success: false,
-            candidates: [],
-            warnings: [],
+            urls: [],
+            tokens: [],
             error: (err as Error).message,
         };
     }

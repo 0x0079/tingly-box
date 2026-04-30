@@ -4,17 +4,20 @@ import {
     Alert,
     Box,
     Button,
-    Card,
-    CardContent,
     Chip,
     CircularProgress,
+    List,
+    ListItemButton,
+    ListItemText,
+    Paper,
     Stack,
     TextField,
     Typography,
 } from '@mui/material';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
-import ProviderIcon from '@/components/ProviderIcon';
-import {extractOnboardingCandidates, type OnboardingCandidate} from '@/services/onboardingExtract';
+import LinkIcon from '@mui/icons-material/Link';
+import VpnKeyIcon from '@mui/icons-material/VpnKey';
+import {extractOnboardingCandidates, type OnboardingTokenCandidate} from '@/services/onboardingExtract';
 import type {EnhancedProviderFormData} from '@/components/ProviderFormDialog';
 
 interface PasteAndDetectProps {
@@ -22,40 +25,25 @@ interface PasteAndDetectProps {
     onManualFill: () => void;
 }
 
-const PLACEHOLDER = `# .env
+const PLACEHOLDER = `Paste anything: a .env snippet, a curl command, a JSON config…
+
+# .env
 OPENAI_API_KEY=sk-proj-...
 OPENAI_BASE_URL=https://api.openai.com/v1
 
-# or paste a curl snippet
 curl https://api.anthropic.com/v1/messages \\
   -H "x-api-key: sk-ant-..."
 `;
-
-const maskToken = (raw?: string) => {
-    if (!raw) return '';
-    if (raw.length <= 8) return '•'.repeat(raw.length);
-    return raw.slice(0, 4) + '…' + raw.slice(-4);
-};
-
-const confidenceLabel = (c: number) => {
-    if (c >= 0.8) return 'high';
-    if (c >= 0.5) return 'medium';
-    return 'low';
-};
-
-const confidenceColor = (c: number): 'success' | 'warning' | 'default' => {
-    if (c >= 0.8) return 'success';
-    if (c >= 0.5) return 'warning';
-    return 'default';
-};
 
 const PasteAndDetect: React.FC<PasteAndDetectProps> = ({onPick, onManualFill}) => {
     const {t} = useTranslation();
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
-    const [candidates, setCandidates] = useState<OnboardingCandidate[] | null>(null);
-    const [warnings, setWarnings] = useState<string[]>([]);
     const [error, setError] = useState<string | null>(null);
+    const [urls, setUrls] = useState<string[] | null>(null);
+    const [tokens, setTokens] = useState<OnboardingTokenCandidate[] | null>(null);
+    const [selectedURL, setSelectedURL] = useState<string | null>(null);
+    const [selectedToken, setSelectedToken] = useState<string | null>(null);
 
     const handleDetect = async () => {
         setLoading(true);
@@ -64,31 +52,38 @@ const PasteAndDetect: React.FC<PasteAndDetectProps> = ({onPick, onManualFill}) =
             const res = await extractOnboardingCandidates(input);
             if (!res.success) {
                 setError(res.error || 'Extraction failed');
-                setCandidates([]);
-                setWarnings([]);
+                setUrls([]);
+                setTokens([]);
+                setSelectedURL(null);
+                setSelectedToken(null);
                 return;
             }
-            setCandidates(res.candidates);
-            setWarnings(res.warnings);
+            setUrls(res.urls);
+            setTokens(res.tokens);
+            // Sensible default: pre-select if there's exactly one of each.
+            setSelectedURL(res.urls.length === 1 ? res.urls[0] : null);
+            setSelectedToken(res.tokens.length === 1 ? res.tokens[0].value : null);
         } finally {
             setLoading(false);
         }
     };
 
-    const handleUse = (c: OnboardingCandidate) => {
-        const apiStyle = (c.api_style === 'anthropic' ? 'anthropic' : 'openai') as 'openai' | 'anthropic';
-        const protocols: ('openai' | 'anthropic')[] = (c.protocols || []).filter(
-            (p): p is 'openai' | 'anthropic' => p === 'openai' || p === 'anthropic',
-        );
+    const handleUseSelected = () => {
+        // Vendor-agnostic: just hand the chosen URL+token to the dialog.
+        // ProviderFormDialog already matches a known provider against
+        // apiBase, fills the rest of the form, and lets the user override
+        // anything before saving.
         onPick({
-            name: c.name,
-            apiBase: c.base_url || '',
-            apiStyle,
-            token: c.token || '',
+            name: '',
+            apiBase: selectedURL || '',
+            apiStyle: undefined,
+            token: selectedToken || '',
             enabled: true,
-            protocols: protocols.length ? protocols : [apiStyle],
         });
     };
+
+    const canUse = !!selectedURL || !!selectedToken;
+    const hasResults = urls !== null;
 
     return (
         <Box>
@@ -124,76 +119,124 @@ const PasteAndDetect: React.FC<PasteAndDetectProps> = ({onPick, onManualFill}) =
                 </Alert>
             )}
 
-            {warnings.map((w, i) => (
-                <Alert key={i} severity="warning" sx={{mt: 2}}>
-                    {w}
-                </Alert>
-            ))}
-
-            {candidates !== null && (
+            {hasResults && (
                 <Box sx={{mt: 2}}>
-                    {candidates.length === 0 ? (
+                    {urls!.length === 0 && tokens!.length === 0 ? (
                         <Alert severity="info">
                             {t('onboarding.paste.noMatch', {
-                                defaultValue: 'Could not detect a known provider. You can fill in the form manually.',
+                                defaultValue: 'No URL or API key detected. You can fill in the form manually.',
                             })}
                         </Alert>
                     ) : (
-                        <Stack spacing={1.5}>
-                            {candidates.map(c => (
-                                <Card key={c.provider_id} variant="outlined">
-                                    <CardContent sx={{py: 1.5, '&:last-child': {pb: 1.5}}}>
-                                        <Stack direction="row" spacing={2} alignItems="center">
-                                            <ProviderIcon identifier={c.icon || c.provider_id} size={32}/>
-                                            <Box sx={{flex: 1, minWidth: 0}}>
-                                                <Stack direction="row" spacing={1} alignItems="center" sx={{mb: 0.5}}>
-                                                    <Typography variant="subtitle2" fontWeight={600}>
-                                                        {c.name}
-                                                    </Typography>
-                                                    <Chip
-                                                        size="small"
-                                                        label={`${confidenceLabel(c.confidence)} · ${Math.round(c.confidence * 100)}%`}
-                                                        color={confidenceColor(c.confidence)}
-                                                        sx={{height: 18, fontSize: '0.65rem'}}
-                                                    />
-                                                    {c.api_style && (
-                                                        <Chip
-                                                            size="small"
-                                                            label={c.api_style}
-                                                            variant="outlined"
-                                                            sx={{height: 18, fontSize: '0.65rem'}}
-                                                        />
-                                                    )}
-                                                </Stack>
-                                                <Typography
-                                                    variant="caption"
-                                                    color="text.secondary"
-                                                    sx={{display: 'block', wordBreak: 'break-all'}}
+                        <>
+                            <Typography variant="caption" color="text.secondary" sx={{display: 'block', mb: 1.5}}>
+                                {t('onboarding.paste.pickHint', {
+                                    defaultValue: 'Pick the URL and the token you want to use, then click "Use selected".',
+                                })}
+                            </Typography>
+
+                            <Stack direction={{xs: 'column', md: 'row'}} spacing={2}>
+                                <Paper variant="outlined" sx={{flex: 1, p: 1.5, minWidth: 0}}>
+                                    <Stack direction="row" spacing={1} alignItems="center" sx={{mb: 1}}>
+                                        <LinkIcon fontSize="small" color="action"/>
+                                        <Typography variant="subtitle2" fontWeight={600}>
+                                            {t('onboarding.paste.urlsTitle', {defaultValue: 'Detected URLs'})}
+                                        </Typography>
+                                        <Chip label={urls!.length} size="small" sx={{height: 18, fontSize: '0.65rem'}}/>
+                                    </Stack>
+                                    {urls!.length === 0 ? (
+                                        <Typography variant="caption" color="text.secondary">
+                                            {t('onboarding.paste.noURL', {defaultValue: 'No URLs detected.'})}
+                                        </Typography>
+                                    ) : (
+                                        <List dense disablePadding>
+                                            {urls!.map(u => (
+                                                <ListItemButton
+                                                    key={u}
+                                                    selected={selectedURL === u}
+                                                    onClick={() => setSelectedURL(prev => prev === u ? null : u)}
+                                                    sx={{borderRadius: 1, mb: 0.5}}
                                                 >
-                                                    {c.base_url || '—'}
-                                                    {c.token ? ` · key: ${maskToken(c.token)}` : ''}
-                                                </Typography>
-                                                {c.match_reasons && c.match_reasons.length > 0 && (
-                                                    <Stack direction="row" spacing={0.5} sx={{mt: 0.5, flexWrap: 'wrap', gap: 0.5}}>
-                                                        {c.match_reasons.map((r, i) => (
-                                                            <Chip
-                                                                key={i}
-                                                                label={r}
-                                                                size="small"
-                                                                sx={{height: 16, fontSize: '0.6rem'}}
-                                                            />
-                                                        ))}
-                                                    </Stack>
-                                                )}
-                                            </Box>
-                                            <Button variant="contained" size="small" onClick={() => handleUse(c)}>
-                                                {t('onboarding.candidate.useThis', {defaultValue: 'Use this'})}
-                                            </Button>
-                                        </Stack>
-                                    </CardContent>
-                                </Card>
-                            ))}
-                        </Stack>
+                                                    <ListItemText
+                                                        primary={
+                                                            <Typography
+                                                                variant="body2"
+                                                                sx={{fontFamily: 'monospace', wordBreak: 'break-all'}}
+                                                            >
+                                                                {u}
+                                                            </Typography>
+                                                        }
+                                                    />
+                                                </ListItemButton>
+                                            ))}
+                                        </List>
+                                    )}
+                                </Paper>
+
+                                <Paper variant="outlined" sx={{flex: 1, p: 1.5, minWidth: 0}}>
+                                    <Stack direction="row" spacing={1} alignItems="center" sx={{mb: 1}}>
+                                        <VpnKeyIcon fontSize="small" color="action"/>
+                                        <Typography variant="subtitle2" fontWeight={600}>
+                                            {t('onboarding.paste.tokensTitle', {defaultValue: 'Detected tokens'})}
+                                        </Typography>
+                                        <Chip label={tokens!.length} size="small" sx={{height: 18, fontSize: '0.65rem'}}/>
+                                    </Stack>
+                                    {tokens!.length === 0 ? (
+                                        <Typography variant="caption" color="text.secondary">
+                                            {t('onboarding.paste.noToken', {defaultValue: 'No tokens detected.'})}
+                                        </Typography>
+                                    ) : (
+                                        <List dense disablePadding>
+                                            {tokens!.map(tok => (
+                                                <ListItemButton
+                                                    key={tok.value}
+                                                    selected={selectedToken === tok.value}
+                                                    onClick={() => setSelectedToken(prev => prev === tok.value ? null : tok.value)}
+                                                    sx={{borderRadius: 1, mb: 0.5}}
+                                                >
+                                                    <ListItemText
+                                                        primary={
+                                                            <Typography
+                                                                variant="body2"
+                                                                sx={{fontFamily: 'monospace'}}
+                                                            >
+                                                                {tok.preview}
+                                                            </Typography>
+                                                        }
+                                                        secondary={
+                                                            <Typography variant="caption" color="text.secondary">
+                                                                {tok.source}
+                                                            </Typography>
+                                                        }
+                                                    />
+                                                </ListItemButton>
+                                            ))}
+                                        </List>
+                                    )}
+                                </Paper>
+                            </Stack>
+
+                            <Stack direction="row" spacing={1.5} sx={{mt: 2}}>
+                                <Button
+                                    variant="contained"
+                                    onClick={handleUseSelected}
+                                    disabled={!canUse}
+                                >
+                                    {t('onboarding.paste.useSelected', {defaultValue: 'Use selected'})}
+                                </Button>
+                                {(selectedURL || selectedToken) && (
+                                    <Button
+                                        variant="text"
+                                        onClick={() => {
+                                            setSelectedURL(null);
+                                            setSelectedToken(null);
+                                        }}
+                                    >
+                                        {t('common.clear', {defaultValue: 'Clear selection'})}
+                                    </Button>
+                                )}
+                            </Stack>
+                        </>
                     )}
                 </Box>
             )}

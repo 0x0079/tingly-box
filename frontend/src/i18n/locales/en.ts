@@ -828,10 +828,13 @@ export default {
     "paste": {
       "detectButton": "Detect",
       "manualFill": "Fill in manually",
-      "noMatch": "Could not detect a known provider. You can fill in the form manually."
-    },
-    "candidate": {
-      "useThis": "Use this"
+      "noMatch": "No URL or API key detected. You can fill in the form manually.",
+      "pickHint": "Pick the URL and the token you want to use, then click \"Use selected\".",
+      "urlsTitle": "Detected URLs",
+      "tokensTitle": "Detected tokens",
+      "noURL": "No URLs detected.",
+      "noToken": "No tokens detected.",
+      "useSelected": "Use selected"
     }
   }
 };

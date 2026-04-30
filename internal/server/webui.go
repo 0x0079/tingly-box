@@ -914,9 +914,9 @@ func (s *Server) useWebAPIEndpoints(manager *swagger.RouteManager) {
 		swagger.WithResponseModel(ProbeResponse{}),
 	)
 
-	// Onboarding: extract provider candidates from arbitrary pasted text.
-	// Pure rule-based; no LLM calls. Used by /onboarding "Paste & detect" path.
-	onboardingHandler := onboarding.NewHandler(s.templateManager)
+	// Onboarding: extract URLs and possible API tokens from arbitrary pasted
+	// text. Vendor-agnostic — the user picks which URL/token to use.
+	onboardingHandler := onboarding.NewHandler(onboarding.NewRuleExtractor())
 	onboarding.RegisterRoutes(apiV1, onboardingHandler)
 
 	apiV1.POST("/probe/provider", s.HandleProbeProvider,
