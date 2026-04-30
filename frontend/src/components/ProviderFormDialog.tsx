@@ -134,11 +134,10 @@ const ProviderFormDialog = ({
     const matchingProvider = useMemo(() => {
         if (!open) return null;
         if (!data.apiBase) return null;
+        // Match by apiBase alone - this handles onboarding prefills where apiStyle is undefined
         return (
             allProviders.find(
-                p =>
-                    (p.baseUrlOpenAI === data.apiBase && data.apiStyle === 'openai') ||
-                    (p.baseUrlAnthropic === data.apiBase && data.apiStyle === 'anthropic')
+                p => p.baseUrlOpenAI === data.apiBase || p.baseUrlAnthropic === data.apiBase
             ) || null
         );
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -207,6 +206,11 @@ const ProviderFormDialog = ({
             } else if (data.apiStyle) {
                 setProtocolOpenAI(data.apiStyle === 'openai');
                 setProtocolAnthropic(data.apiStyle === 'anthropic');
+            } else if (matchingProvider) {
+                // When apiBase matches a known provider (e.g., from onboarding),
+                // auto-select the provider's supported protocols
+                setProtocolOpenAI(!!matchingProvider.baseUrlOpenAI);
+                setProtocolAnthropic(!!matchingProvider.baseUrlAnthropic);
             } else {
                 setProtocolOpenAI(false);
                 setProtocolAnthropic(false);
