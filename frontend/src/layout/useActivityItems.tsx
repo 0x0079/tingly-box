@@ -18,7 +18,6 @@ import {
     IconKey,
     IconShield,
     IconLock,
-    IconSparkles,
     IconMessageCircle,
     IconList,
 } from '@tabler/icons-react';

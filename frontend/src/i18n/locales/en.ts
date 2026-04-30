@@ -110,7 +110,10 @@ export default {
     "userRequest": "User Request",
     "skills": "Skills",
     "addProfile": "Add Profile",
-    "default": "default"
+    "default": "default",
+    "onboarding": "Quick Add Provider",
+    "onboardingHint": "Browse or paste config",
+    "onboardingShort": "Onboard"
   },
   "health": {
     "connected": "Connected",

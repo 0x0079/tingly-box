@@ -110,7 +110,10 @@ export default {
     "userRequest": "用户请求",
     "skills": "技能",
     "addProfile": "添加配置文件",
-    "default": "默认"
+    "default": "默认",
+    "onboarding": "快速添加提供商",
+    "onboardingHint": "浏览或粘贴配置",
+    "onboardingShort": "入门"
   },
   "health": {
     "connected": "已连接",
