@@ -286,8 +286,11 @@ const OnboardingGate: React.FC = () => {
                 const result = await api.getProviders();
                 if (cancelled) return;
                 const providers = Array.isArray(result?.data) ? result.data : [];
+                // No providers? Force onboarding, regardless of previous activity
                 if (providers.length === 0) {
                     setTarget('/onboarding');
+                    // Clear the previous activity path to avoid redirect loops
+                    localStorage.removeItem('layout.activeActivity');
                     return;
                 }
             } catch {
