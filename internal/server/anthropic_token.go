@@ -108,6 +108,10 @@ func (s *Server) AnthropicCountTokens(c *gin.Context) {
 
 // anthropicCountTokens unified token counting implementation
 func (s *Server) anthropicCountTokens(c *gin.Context, provider *typ.Provider, model string, version anthropicCountTokensVersion) {
+	// Resolve fusion endpoint: when the provider has an Anthropic-compatible
+	// fusion URL configured, route there natively to avoid a transform.
+	provider = resolveProviderForClient(provider, protocol.APIStyleAnthropic)
+
 	c.Set("provider", provider.UUID)
 	c.Set("model", model)
 

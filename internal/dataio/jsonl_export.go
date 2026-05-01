@@ -121,19 +121,21 @@ func (e *JSONLExporter) buildRuleData(rule *typ.Rule) RuleData {
 // buildProviderData converts a Provider to ProviderData
 func (e *JSONLExporter) buildProviderData(provider *typ.Provider) ProviderData {
 	return ProviderData{
-		Type:        "provider",
-		UUID:        provider.UUID,
-		Name:        provider.Name,
-		APIBase:     provider.APIBase,
-		APIStyle:    string(provider.APIStyle),
-		AuthType:    string(provider.AuthType),
-		Token:       provider.Token,
-		OAuthDetail: provider.OAuthDetail,
-		Enabled:     provider.Enabled,
-		ProxyURL:    provider.ProxyURL,
-		Timeout:     provider.Timeout,
-		Tags:        provider.Tags,
-		Models:      provider.Models,
+		Type:             "provider",
+		UUID:             provider.UUID,
+		Name:             provider.Name,
+		APIBase:          provider.APIBase,
+		APIStyle:         string(provider.APIStyle),
+		APIBaseOpenAI:    provider.APIBaseOpenAI,
+		APIBaseAnthropic: provider.APIBaseAnthropic,
+		AuthType:         string(provider.AuthType),
+		Token:            provider.Token,
+		OAuthDetail:      provider.OAuthDetail,
+		Enabled:          provider.Enabled,
+		ProxyURL:         provider.ProxyURL,
+		Timeout:          provider.Timeout,
+		Tags:             provider.Tags,
+		Models:           provider.Models,
 	}
 }
 

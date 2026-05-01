@@ -235,7 +235,24 @@ const ApiKeyTable = ({ providers, onEdit, onToggle, onDelete, onNotification, pr
                             </TableCell>
                             {/* API Style */}
                             <TableCell>
-                                <ApiStyleBadge sx={{ minWidth: '110px' }} apiStyle={provider.api_style} />
+                                <Stack direction="row" spacing={0.5} alignItems="center">
+                                    <ApiStyleBadge sx={{ minWidth: '110px' }} apiStyle={provider.api_style} />
+                                    {provider.api_base_openai && provider.api_base_anthropic && (
+                                        <Tooltip
+                                            title="Single provider entry serving both OpenAI and Anthropic protocols"
+                                            arrow
+                                            placement="top"
+                                        >
+                                            <Chip
+                                                label="Fusion"
+                                                size="small"
+                                                color="success"
+                                                variant="outlined"
+                                                sx={{ height: 20, fontSize: '0.65rem', fontWeight: 600 }}
+                                            />
+                                        </Tooltip>
+                                    )}
+                                </Stack>
                             </TableCell>
                             {/* API Base URL */}
                             <TableCell>

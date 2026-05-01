@@ -196,6 +196,10 @@ func (s *Server) HandleOpenAIChatCompletions(c *gin.Context) {
 }
 
 func (s *Server) OpenAIChatCompletion(c *gin.Context, req protocol.OpenAIChatCompletionRequest, responseModel string, provider *typ.Provider, scenarioType typ.RuleScenario, rule *typ.Rule) {
+	// Resolve fusion endpoint: when the provider has an OpenAI-compatible
+	// fusion URL configured, route there natively to avoid a transform.
+	provider = resolveProviderForClient(provider, protocol.APIStyleOpenAI)
+
 	isStreaming := req.Stream
 	actualModel := req.Model
 	maxAllowed := s.templateManager.GetMaxTokensForModelByProvider(provider, actualModel)

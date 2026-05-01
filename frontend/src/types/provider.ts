@@ -5,6 +5,10 @@ export interface Provider {
     enabled: boolean;
     api_base: string;
     api_style: "openai" | "anthropic"; // "openai" or "anthropic", defaults to "openai"
+    // Fusion-mode optional URLs. When both are set, this provider serves both
+    // protocols natively (api_key auth only). Independent of api_base.
+    api_base_openai?: string;
+    api_base_anthropic?: string;
     token?: string;
     auth_type?: "api_key" | "oauth"; // "api_key" or "oauth"
     oauth_detail?: OAuthDetail;

@@ -141,16 +141,66 @@ const CredentialPage = () => {
         setLoading(false);
     };
 
+    // Build the body for an add request. When BOTH protocols are checked and
+    // we have base URLs for each, send a single fusion-mode provider (one
+    // entry, two URLs, one credential). Otherwise fall back to a normal
+    // single-protocol provider.
+    const buildAddProviderPayload = () => {
+        const protocols =
+            (providerFormData as any).protocols as ('openai' | 'anthropic')[] ||
+            [providerFormData.apiStyle].filter(Boolean) as ('openai' | 'anthropic')[];
+        const providerBaseUrls = (providerFormData as any).providerBaseUrls as
+            | { openai?: string; anthropic?: string }
+            | undefined;
+
+        const fusion =
+            protocols.length === 2 &&
+            !!providerBaseUrls?.openai &&
+            !!providerBaseUrls?.anthropic;
+
+        if (fusion) {
+            return {
+                name: providerFormData.name,
+                api_base: providerBaseUrls!.openai,
+                api_style: 'openai' as const,
+                api_base_openai: providerBaseUrls!.openai,
+                api_base_anthropic: providerBaseUrls!.anthropic,
+                token: providerFormData.token,
+                no_key_required: (providerFormData as any).noKeyRequired || false,
+                enabled: true,
+                proxy_url: (providerFormData as any).proxyUrl ?? '',
+                auth_type: 'api_key',
+            };
+        }
+
+        const protocol = protocols[0];
+        const apiBase = providerBaseUrls?.[protocol] || providerFormData.apiBase;
+        return {
+            name: providerFormData.name,
+            api_base: apiBase,
+            api_style: protocol,
+            token: providerFormData.token,
+            no_key_required: (providerFormData as any).noKeyRequired || false,
+            enabled: true,
+            proxy_url: (providerFormData as any).proxyUrl ?? '',
+            auth_type: 'api_key',
+        };
+    };
+
     // API Key handlers
     const handleProviderSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
         if (apiKeyDialogMode === 'edit') {
-            // Edit mode: single provider update
+            // Edit mode: single provider update — propagate fusion fields if
+            // the user toggled them in the dialog. Empty-string clears the
+            // field on the server (UpdateProviderRequest pointer fields).
             const providerData = {
                 name: providerFormData.name,
                 api_base: providerFormData.apiBase,
                 api_style: providerFormData.apiStyle,
+                api_base_openai: (providerFormData as any).apiBaseOpenAI ?? '',
+                api_base_anthropic: (providerFormData as any).apiBaseAnthropic ?? '',
                 token: providerFormData.token || undefined,
                 no_key_required: (providerFormData as any).noKeyRequired || false,
                 enabled: providerFormData.enabled,
@@ -166,42 +216,14 @@ const CredentialPage = () => {
                 showNotification(`Failed to update provider: ${result.error}`, 'error');
             }
         } else {
-            // Add mode: support multi-protocol
-            const protocols = (providerFormData as any).protocols as ('openai' | 'anthropic')[] || [providerFormData.apiStyle].filter(Boolean);
-            const providerBaseUrls = (providerFormData as any).providerBaseUrls as { openai?: string; anthropic?: string } | undefined;
-
-            let allSuccess = true;
-            let lastError = '';
-
-            for (const protocol of protocols) {
-                const apiBase = providerBaseUrls?.[protocol] || providerFormData.apiBase;
-                const providerData = {
-                    name: protocols.length > 1
-                        ? `${providerFormData.name} (${protocol === 'openai' ? 'OpenAI' : 'Anthropic'})`
-                        : providerFormData.name,
-                    api_base: apiBase,
-                    api_style: protocol,
-                    token: providerFormData.token,
-                    no_key_required: (providerFormData as any).noKeyRequired || false,
-                    enabled: true,
-                    proxy_url: (providerFormData as any).proxyUrl ?? '',
-                    auth_type: 'api_key',
-                };
-
-                const result = await api.addProvider(providerData);
-                if (!result.success) {
-                    allSuccess = false;
-                    lastError = result.error;
-                }
-            }
-
-            if (allSuccess) {
-                const count = protocols.length;
-                showNotification(`${count > 1 ? `${count} providers` : 'Provider'} added successfully!`, 'success');
+            const providerData = buildAddProviderPayload();
+            const result = await api.addProvider(providerData);
+            if (result.success) {
+                showNotification('Provider added successfully!', 'success');
                 setApiKeyDialogOpen(false);
                 loadProviders();
             } else {
-                showNotification(`Failed to add provider: ${lastError}`, 'error');
+                showNotification(`Failed to add provider: ${result.error}`, 'error');
             }
         }
     };
@@ -212,6 +234,8 @@ const CredentialPage = () => {
                 name: providerFormData.name,
                 api_base: providerFormData.apiBase,
                 api_style: providerFormData.apiStyle,
+                api_base_openai: (providerFormData as any).apiBaseOpenAI ?? '',
+                api_base_anthropic: (providerFormData as any).apiBaseAnthropic ?? '',
                 token: providerFormData.token || undefined,
                 no_key_required: (providerFormData as any).noKeyRequired || false,
                 enabled: providerFormData.enabled,
@@ -227,42 +251,15 @@ const CredentialPage = () => {
                 showNotification(`Failed to update provider: ${result.error}`, 'error');
             }
         } else {
-            // Force add with multi-protocol support
-            const protocols = (providerFormData as any).protocols as ('openai' | 'anthropic')[] || [providerFormData.apiStyle].filter(Boolean);
-            const providerBaseUrls = (providerFormData as any).providerBaseUrls as { openai?: string; anthropic?: string } | undefined;
+            const providerData = buildAddProviderPayload();
+            const result = await api.addProvider(providerData, true);
 
-            let allSuccess = true;
-            let lastError = '';
-
-            for (const protocol of protocols) {
-                const apiBase = providerBaseUrls?.[protocol] || providerFormData.apiBase;
-                const providerData = {
-                    name: protocols.length > 1
-                        ? `${providerFormData.name} (${protocol === 'openai' ? 'OpenAI' : 'Anthropic'})`
-                        : providerFormData.name,
-                    api_base: apiBase,
-                    api_style: protocol,
-                    token: providerFormData.token,
-                    no_key_required: (providerFormData as any).noKeyRequired || false,
-                    enabled: true,
-                    proxy_url: (providerFormData as any).proxyUrl ?? '',
-                    auth_type: 'api_key',
-                };
-
-                const result = await api.addProvider(providerData, true);
-                if (!result.success) {
-                    allSuccess = false;
-                    lastError = result.error;
-                }
-            }
-
-            if (allSuccess) {
-                const count = protocols.length;
-                showNotification(`${count > 1 ? `${count} providers` : 'Provider'} added successfully!`, 'success');
+            if (result.success) {
+                showNotification('Provider added successfully!', 'success');
                 setApiKeyDialogOpen(false);
                 loadProviders();
             } else {
-                showNotification(`Failed to add provider: ${lastError}`, 'error');
+                showNotification(`Failed to add provider: ${result.error || 'unknown error'}`, 'error');
             }
         }
     };
@@ -306,10 +303,13 @@ const CredentialPage = () => {
                     name: provider.name,
                     apiBase: provider.api_base,
                     apiStyle: provider.api_style || 'openai',
+                    apiBaseOpenAI: provider.api_base_openai || '',
+                    apiBaseAnthropic: provider.api_base_anthropic || '',
                     token: provider.token || "",
                     enabled: provider.enabled,
                     noKeyRequired: provider.no_key_required || false,
                     proxyUrl: provider.proxy_url || '',
+                    authType: provider.auth_type || 'api_key',
                 } as any);
                 setApiKeyDialogOpen(true);
             }

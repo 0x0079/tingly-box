@@ -553,6 +553,162 @@ func TestProvider_IsOAuthExpired(t *testing.T) {
 	}
 }
 
+func TestProvider_ResolveEndpoint(t *testing.T) {
+	tests := []struct {
+		name        string
+		provider    *Provider
+		clientStyle APIStyle
+		wantURL     string
+		wantStyle   APIStyle
+	}{
+		{
+			name: "fusion provider, openai client picks openai fusion URL",
+			provider: &Provider{
+				AuthType:         AuthTypeAPIKey,
+				APIBase:          "https://primary.example.com/v1",
+				APIStyle:         APIStyleOpenAI,
+				APIBaseOpenAI:    "https://oai.example.com/v1",
+				APIBaseAnthropic: "https://ant.example.com",
+			},
+			clientStyle: APIStyleOpenAI,
+			wantURL:     "https://oai.example.com/v1",
+			wantStyle:   APIStyleOpenAI,
+		},
+		{
+			name: "fusion provider, anthropic client picks anthropic fusion URL",
+			provider: &Provider{
+				AuthType:         AuthTypeAPIKey,
+				APIBase:          "https://primary.example.com/v1",
+				APIStyle:         APIStyleOpenAI,
+				APIBaseOpenAI:    "https://oai.example.com/v1",
+				APIBaseAnthropic: "https://ant.example.com",
+			},
+			clientStyle: APIStyleAnthropic,
+			wantURL:     "https://ant.example.com",
+			wantStyle:   APIStyleAnthropic,
+		},
+		{
+			name: "partial fusion (only openai), anthropic client falls back to legacy",
+			provider: &Provider{
+				AuthType:      AuthTypeAPIKey,
+				APIBase:       "https://primary.example.com",
+				APIStyle:      APIStyleAnthropic,
+				APIBaseOpenAI: "https://oai.example.com/v1",
+			},
+			clientStyle: APIStyleAnthropic,
+			wantURL:     "https://primary.example.com",
+			wantStyle:   APIStyleAnthropic,
+		},
+		{
+			name: "partial fusion (only openai), openai client uses fusion URL",
+			provider: &Provider{
+				AuthType:      AuthTypeAPIKey,
+				APIBase:       "https://primary.example.com",
+				APIStyle:      APIStyleAnthropic,
+				APIBaseOpenAI: "https://oai.example.com/v1",
+			},
+			clientStyle: APIStyleOpenAI,
+			wantURL:     "https://oai.example.com/v1",
+			wantStyle:   APIStyleOpenAI,
+		},
+		{
+			name: "no fusion fields, returns legacy",
+			provider: &Provider{
+				AuthType: AuthTypeAPIKey,
+				APIBase:  "https://primary.example.com",
+				APIStyle: APIStyleOpenAI,
+			},
+			clientStyle: APIStyleAnthropic,
+			wantURL:     "https://primary.example.com",
+			wantStyle:   APIStyleOpenAI,
+		},
+		{
+			name: "OAuth provider ignores fusion fields",
+			provider: &Provider{
+				AuthType:         AuthTypeOAuth,
+				APIBase:          "https://primary.example.com",
+				APIStyle:         APIStyleAnthropic,
+				APIBaseOpenAI:    "https://oai.example.com/v1",
+				APIBaseAnthropic: "https://ant.example.com",
+			},
+			clientStyle: APIStyleOpenAI,
+			wantURL:     "https://primary.example.com",
+			wantStyle:   APIStyleAnthropic,
+		},
+		{
+			name:        "nil provider returns empty",
+			provider:    nil,
+			clientStyle: APIStyleOpenAI,
+			wantURL:     "",
+			wantStyle:   "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotURL, gotStyle := tt.provider.ResolveEndpoint(tt.clientStyle)
+			if gotURL != tt.wantURL {
+				t.Errorf("ResolveEndpoint URL = %q, want %q", gotURL, tt.wantURL)
+			}
+			if gotStyle != tt.wantStyle {
+				t.Errorf("ResolveEndpoint style = %q, want %q", gotStyle, tt.wantStyle)
+			}
+		})
+	}
+}
+
+func TestProvider_IsFusion(t *testing.T) {
+	tests := []struct {
+		name     string
+		provider *Provider
+		want     bool
+	}{
+		{
+			name: "both fusion URLs set, api_key auth",
+			provider: &Provider{
+				AuthType:         AuthTypeAPIKey,
+				APIBaseOpenAI:    "https://oai.example.com/v1",
+				APIBaseAnthropic: "https://ant.example.com",
+			},
+			want: true,
+		},
+		{
+			name: "only openai fusion URL set",
+			provider: &Provider{
+				AuthType:      AuthTypeAPIKey,
+				APIBaseOpenAI: "https://oai.example.com/v1",
+			},
+			want: false,
+		},
+		{
+			name: "both fusion URLs set, oauth auth",
+			provider: &Provider{
+				AuthType:         AuthTypeOAuth,
+				APIBaseOpenAI:    "https://oai.example.com/v1",
+				APIBaseAnthropic: "https://ant.example.com",
+			},
+			want: false,
+		},
+		{
+			name:     "no fusion fields",
+			provider: &Provider{AuthType: AuthTypeAPIKey, APIBase: "https://primary.example.com"},
+			want:     false,
+		},
+		{
+			name:     "nil provider",
+			provider: nil,
+			want:     false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.provider.IsFusion(); got != tt.want {
+				t.Errorf("IsFusion() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 // Helper function for string contains check
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr ||

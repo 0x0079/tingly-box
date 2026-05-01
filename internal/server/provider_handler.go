@@ -22,14 +22,16 @@ import (
 // maskProviderForResponse masks sensitive data and returns a safe ProviderResponse
 func maskProviderForResponse(provider *typ.Provider) ProviderResponse {
 	resp := ProviderResponse{
-		UUID:          provider.UUID,
-		Name:          provider.Name,
-		APIBase:       provider.APIBase,
-		APIStyle:      string(provider.APIStyle),
-		NoKeyRequired: provider.NoKeyRequired,
-		Enabled:       provider.Enabled,
-		ProxyURL:      provider.ProxyURL,
-		AuthType:      string(provider.AuthType),
+		UUID:             provider.UUID,
+		Name:             provider.Name,
+		APIBase:          provider.APIBase,
+		APIStyle:         string(provider.APIStyle),
+		APIBaseOpenAI:    provider.APIBaseOpenAI,
+		APIBaseAnthropic: provider.APIBaseAnthropic,
+		NoKeyRequired:    provider.NoKeyRequired,
+		Enabled:          provider.Enabled,
+		ProxyURL:         provider.ProxyURL,
+		AuthType:         string(provider.AuthType),
 	}
 
 	switch provider.AuthType {
@@ -134,6 +136,25 @@ func (s *Server) CreateProvider(c *gin.Context) {
 		req.AuthType = string(typ.AuthTypeAPIKey)
 	}
 
+	// Fusion-mode constraints: optional dual base URLs are only valid for
+	// api_key auth, and Google-style providers cannot opt in.
+	if req.APIBaseOpenAI != "" || req.APIBaseAnthropic != "" {
+		if req.AuthType != string(typ.AuthTypeAPIKey) {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"error":   "Fusion base URLs (api_base_openai / api_base_anthropic) are only supported for api_key auth providers",
+			})
+			return
+		}
+		if req.APIStyle == string(protocol.APIStyleGoogle) {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"error":   "Fusion base URLs are not supported for Google-style providers",
+			})
+			return
+		}
+	}
+
 	uid, err := uuid.NewUUID()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, CreateProviderResponse{
@@ -143,16 +164,18 @@ func (s *Server) CreateProvider(c *gin.Context) {
 		return
 	}
 	provider := &typ.Provider{
-		UUID:          uid.String(),
-		Name:          req.Name,
-		APIBase:       req.APIBase,
-		APIStyle:      protocol.APIStyle(req.APIStyle),
-		Token:         req.Token,
-		NoKeyRequired: req.NoKeyRequired,
-		Enabled:       true, // always make new provider enabled
-		ProxyURL:      req.ProxyURL,
-		AuthType:      typ.AuthType(req.AuthType),
-		Timeout:       constant.DefaultRequestTimeout,
+		UUID:             uid.String(),
+		Name:             req.Name,
+		APIBase:          req.APIBase,
+		APIStyle:         protocol.APIStyle(req.APIStyle),
+		APIBaseOpenAI:    req.APIBaseOpenAI,
+		APIBaseAnthropic: req.APIBaseAnthropic,
+		Token:            req.Token,
+		NoKeyRequired:    req.NoKeyRequired,
+		Enabled:          true, // always make new provider enabled
+		ProxyURL:         req.ProxyURL,
+		AuthType:         typ.AuthType(req.AuthType),
+		Timeout:          constant.DefaultRequestTimeout,
 	}
 
 	err = s.config.AddProvider(provider)
@@ -284,6 +307,12 @@ func (s *Server) UpdateProvider(c *gin.Context) {
 	if req.APIStyle != nil {
 		provider.APIStyle = protocol.APIStyle(*req.APIStyle)
 	}
+	if req.APIBaseOpenAI != nil {
+		provider.APIBaseOpenAI = *req.APIBaseOpenAI
+	}
+	if req.APIBaseAnthropic != nil {
+		provider.APIBaseAnthropic = *req.APIBaseAnthropic
+	}
 	// Only update token if it's provided and not empty
 	if req.Token != nil && *req.Token != "" {
 		provider.Token = *req.Token
@@ -296,6 +325,26 @@ func (s *Server) UpdateProvider(c *gin.Context) {
 	}
 	if req.ProxyURL != nil {
 		provider.ProxyURL = *req.ProxyURL
+	}
+
+	// Fusion-mode constraints: dual base URLs are only valid for api_key auth,
+	// and Google-style providers cannot opt in. Validate post-merge so we
+	// catch combinations introduced by partial PATCHes.
+	if provider.APIBaseOpenAI != "" || provider.APIBaseAnthropic != "" {
+		if provider.AuthType != typ.AuthTypeAPIKey && provider.AuthType != "" {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"error":   "Fusion base URLs (api_base_openai / api_base_anthropic) are only supported for api_key auth providers",
+			})
+			return
+		}
+		if provider.APIStyle == protocol.APIStyleGoogle {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"error":   "Fusion base URLs are not supported for Google-style providers",
+			})
+			return
+		}
 	}
 
 	err = s.config.UpdateProvider(uid, provider)

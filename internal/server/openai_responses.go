@@ -138,6 +138,10 @@ func (s *Server) HandleResponsesCreate(c *gin.Context) {
 }
 
 func (s *Server) ResponsesCreate(c *gin.Context, scenarioType typ.RuleScenario, provider *typ.Provider, rule *typ.Rule, req protocol.ResponseCreateRequest, responseModel string, maxAllowed int) {
+	// Resolve fusion endpoint: when the provider has an OpenAI-compatible
+	// fusion URL configured, route there natively to avoid a transform.
+	provider = resolveProviderForClient(provider, protocol.APIStyleOpenAI)
+
 	actualModel := req.Model
 	isStreaming := req.Stream
 
