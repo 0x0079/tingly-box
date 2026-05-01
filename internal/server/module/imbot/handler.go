@@ -242,6 +242,8 @@ func (h *Handler) UpdateSettings(c *gin.Context) {
 	// Only set fields if they are provided in the request
 	if req.Name != "" {
 		settings.Name = strings.TrimSpace(req.Name)
+	} else {
+		settings.Name = currentSettings.Name
 	}
 
 	settings.Platform = platform
@@ -299,7 +301,8 @@ func (h *Handler) UpdateSettings(c *gin.Context) {
 	logrus.WithField("uuid", uuid).Info("ImBot settings updated")
 
 	// Handle bot lifecycle if enabled status changed
-	if currentSettings.Enabled != settings.Enabled {
+	enabledToggled := currentSettings.Enabled != settings.Enabled
+	if enabledToggled {
 		if h.botMgr != nil {
 			ctx := context.Background()
 			if settings.Enabled {
@@ -313,6 +316,24 @@ func (h *Handler) UpdateSettings(c *gin.Context) {
 					logrus.WithError(err).WithField("uuid", uuid).Warn("Failed to stop bot after update")
 				}
 			}
+		}
+	}
+
+	// Restart a running bot when SmartGuide config (or the name embedded in the
+	// rule description) changes, so the running BotSetting and the
+	// _internal_smart_guide_{uuid} rule pick up the new provider/model.
+	// Skipped when enabled was toggled in the same request — that branch above
+	// already starts/stops the bot.
+	smartGuideChanged := currentSettings.SmartGuideProvider != settings.SmartGuideProvider ||
+		currentSettings.SmartGuideModel != settings.SmartGuideModel ||
+		currentSettings.Name != settings.Name
+	if smartGuideChanged && !enabledToggled && settings.Enabled && h.botMgr != nil && h.botMgr.IsRunning(uuid) {
+		ctx := context.Background()
+		if err := h.botMgr.StopBot(uuid); err != nil {
+			logrus.WithError(err).WithField("uuid", uuid).Warn("Failed to stop bot for SmartGuide config refresh")
+		}
+		if err := h.botMgr.StartBot(ctx, uuid); err != nil {
+			logrus.WithError(err).WithField("uuid", uuid).Warn("Failed to restart bot after SmartGuide config change")
 		}
 	}
 
