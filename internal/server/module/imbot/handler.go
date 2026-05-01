@@ -14,6 +14,50 @@ import (
 	"github.com/tingly-dev/tingly-box/internal/server/config"
 )
 
+// botLifecycle is the subset of BotManager that UpdateSettings needs to
+// react to SmartGuide config changes. Defining it here lets us swap a fake
+// in tests without depending on the full BotManager construction.
+type botLifecycle interface {
+	IsRunning(uuid string) bool
+	StopBot(uuid string) error
+	StartBot(ctx context.Context, uuid string) error
+}
+
+// shouldRestartForSmartGuideChange reports whether a running bot must be
+// restarted because its SmartGuide config (or the name embedded in the
+// _internal_smart_guide_{uuid} rule description) changed.
+//
+// Callers must pass enabledToggled=true when the same request also flipped
+// Enabled — that case is handled by the enabled-toggle branch and must not
+// be double-handled here.
+func shouldRestartForSmartGuideChange(before, after db.Settings, enabledToggled bool) bool {
+	if enabledToggled {
+		return false
+	}
+	if !after.Enabled {
+		return false
+	}
+	return before.SmartGuideProvider != after.SmartGuideProvider ||
+		before.SmartGuideModel != after.SmartGuideModel ||
+		before.Name != after.Name
+}
+
+// restartBotForSmartGuideChange stops and re-starts a running bot so it
+// picks up the new SmartGuide config. No-op when mgr is nil or the bot
+// isn't currently running. Stop / start failures are logged but do not
+// surface to the API caller, matching the enabled-toggle branch.
+func restartBotForSmartGuideChange(ctx context.Context, mgr botLifecycle, uuid string) {
+	if mgr == nil || !mgr.IsRunning(uuid) {
+		return
+	}
+	if err := mgr.StopBot(uuid); err != nil {
+		logrus.WithError(err).WithField("uuid", uuid).Warn("Failed to stop bot for SmartGuide config refresh")
+	}
+	if err := mgr.StartBot(ctx, uuid); err != nil {
+		logrus.WithError(err).WithField("uuid", uuid).Warn("Failed to restart bot after SmartGuide config change")
+	}
+}
+
 // Handler handles ImBot settings HTTP requests
 type Handler struct {
 	config         *config.Config
@@ -324,17 +368,8 @@ func (h *Handler) UpdateSettings(c *gin.Context) {
 	// _internal_smart_guide_{uuid} rule pick up the new provider/model.
 	// Skipped when enabled was toggled in the same request — that branch above
 	// already starts/stops the bot.
-	smartGuideChanged := currentSettings.SmartGuideProvider != settings.SmartGuideProvider ||
-		currentSettings.SmartGuideModel != settings.SmartGuideModel ||
-		currentSettings.Name != settings.Name
-	if smartGuideChanged && !enabledToggled && settings.Enabled && h.botMgr != nil && h.botMgr.IsRunning(uuid) {
-		ctx := context.Background()
-		if err := h.botMgr.StopBot(uuid); err != nil {
-			logrus.WithError(err).WithField("uuid", uuid).Warn("Failed to stop bot for SmartGuide config refresh")
-		}
-		if err := h.botMgr.StartBot(ctx, uuid); err != nil {
-			logrus.WithError(err).WithField("uuid", uuid).Warn("Failed to restart bot after SmartGuide config change")
-		}
+	if shouldRestartForSmartGuideChange(currentSettings, settings, enabledToggled) {
+		restartBotForSmartGuideChange(context.Background(), h.botMgr, uuid)
 	}
 
 	// Fetch updated settings

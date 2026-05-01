@@ -1,6 +1,8 @@
 package imbot
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -426,6 +428,152 @@ func TestPlatformConfigStructure(t *testing.T) {
 		t.Errorf("expected 1 field, got %d", len(config.Fields))
 	}
 }
+
+// fakeBotLifecycle is a minimal botLifecycle stand-in that records every
+// call so the tests can assert order and arguments.
+type fakeBotLifecycle struct {
+	running    bool
+	stopCalls  []string
+	startCalls []string
+	calls      []string // ordered log of "stop"/"start"
+	stopErr    error
+	startErr   error
+}
+
+func (f *fakeBotLifecycle) IsRunning(uuid string) bool { return f.running }
+
+func (f *fakeBotLifecycle) StopBot(uuid string) error {
+	f.stopCalls = append(f.stopCalls, uuid)
+	f.calls = append(f.calls, "stop")
+	return f.stopErr
+}
+
+func (f *fakeBotLifecycle) StartBot(ctx context.Context, uuid string) error {
+	f.startCalls = append(f.startCalls, uuid)
+	f.calls = append(f.calls, "start")
+	return f.startErr
+}
+
+func TestShouldRestartForSmartGuideChange(t *testing.T) {
+	base := db.Settings{
+		Name:               "Bot A",
+		Enabled:            true,
+		SmartGuideProvider: "prov-old",
+		SmartGuideModel:    "model-old",
+	}
+
+	cases := []struct {
+		name           string
+		before         db.Settings
+		after          db.Settings
+		enabledToggled bool
+		want           bool
+	}{
+		{
+			name:   "provider changed -> restart",
+			before: base,
+			after: db.Settings{
+				Name: "Bot A", Enabled: true,
+				SmartGuideProvider: "prov-new", SmartGuideModel: "model-old",
+			},
+			want: true,
+		},
+		{
+			name:   "model changed -> restart",
+			before: base,
+			after: db.Settings{
+				Name: "Bot A", Enabled: true,
+				SmartGuideProvider: "prov-old", SmartGuideModel: "model-new",
+			},
+			want: true,
+		},
+		{
+			name:   "name changed -> restart (rule description embeds the name)",
+			before: base,
+			after: db.Settings{
+				Name: "Bot B", Enabled: true,
+				SmartGuideProvider: "prov-old", SmartGuideModel: "model-old",
+			},
+			want: true,
+		},
+		{
+			name:   "no relevant change -> no restart",
+			before: base,
+			after:  base,
+			want:   false,
+		},
+		{
+			name:   "unrelated field changed only -> no restart",
+			before: base,
+			after: db.Settings{
+				Name: "Bot A", Enabled: true,
+				SmartGuideProvider: "prov-old", SmartGuideModel: "model-old",
+				ProxyURL: "http://proxy",
+			},
+			want: false,
+		},
+		{
+			name:   "disabled bot -> no restart even if model changed",
+			before: db.Settings{Name: "Bot A", Enabled: false, SmartGuideProvider: "prov-old", SmartGuideModel: "model-old"},
+			after:  db.Settings{Name: "Bot A", Enabled: false, SmartGuideProvider: "prov-new", SmartGuideModel: "model-old"},
+			want:   false,
+		},
+		{
+			name:           "enabled toggled in same request -> defer to enabled-toggle branch",
+			before:         db.Settings{Name: "Bot A", Enabled: false, SmartGuideProvider: "prov-old", SmartGuideModel: "model-old"},
+			after:          db.Settings{Name: "Bot A", Enabled: true, SmartGuideProvider: "prov-new", SmartGuideModel: "model-old"},
+			enabledToggled: true,
+			want:           false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := shouldRestartForSmartGuideChange(tc.before, tc.after, tc.enabledToggled)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestRestartBotForSmartGuideChange_Running_StopsThenStarts(t *testing.T) {
+	mgr := &fakeBotLifecycle{running: true}
+
+	restartBotForSmartGuideChange(context.Background(), mgr, "uuid-1")
+
+	assert.Equal(t, []string{"stop", "start"}, mgr.calls,
+		"stop must happen before start so the new BotSetting is read fresh")
+	assert.Equal(t, []string{"uuid-1"}, mgr.stopCalls)
+	assert.Equal(t, []string{"uuid-1"}, mgr.startCalls)
+}
+
+func TestRestartBotForSmartGuideChange_NotRunning_NoOp(t *testing.T) {
+	mgr := &fakeBotLifecycle{running: false}
+
+	restartBotForSmartGuideChange(context.Background(), mgr, "uuid-1")
+
+	assert.Empty(t, mgr.calls, "must not touch a bot that isn't running")
+}
+
+func TestRestartBotForSmartGuideChange_NilManager_NoPanic(t *testing.T) {
+	assert.NotPanics(t, func() {
+		restartBotForSmartGuideChange(context.Background(), nil, "uuid-1")
+	})
+}
+
+func TestRestartBotForSmartGuideChange_StopFails_StillStarts(t *testing.T) {
+	// If Stop fails (e.g. timeout), we still attempt Start so a transient
+	// stop failure doesn't leave the bot running with stale config.
+	mgr := &fakeBotLifecycle{running: true, stopErr: errors.New("boom")}
+
+	restartBotForSmartGuideChange(context.Background(), mgr, "uuid-1")
+
+	assert.Equal(t, []string{"stop", "start"}, mgr.calls)
+}
+
+// Ensure the production type satisfies the interface used by the helper.
+// This is a compile-time assertion: if BotManager's signatures drift the
+// build breaks here, not in production at request time.
+var _ botLifecycle = (*BotManager)(nil)
 
 func TestDeleteResponseStructure(t *testing.T) {
 	response := DeleteResponse{
