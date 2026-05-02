@@ -177,21 +177,44 @@ export const ProviderNode: React.FC<ProviderNodeComponentProps> = ({
                 {/* Divider */}
                 <Divider sx={NODE_LAYER_STYLES.divider} />
 
-                {/* Bottom Layer - API Style Badge */}
+                {/* Bottom Layer - API Style Badge(s) */}
                 {provider.provider && (
                     <Box sx={NODE_LAYER_STYLES.bottomLayer}>
-                        <ApiStyleBadge
-                            apiStyle={apiStyle}
-                            sx={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                borderRadius: 1,
-                                transition: 'all 0.2s',
-                                width: '100%',
-                                fontWeight: null,
-                            }}
-                        />
+                        {providerInfo.provider?.api_base_openai && providerInfo.provider?.api_base_anthropic ? (
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, width: '100%' }}>
+                                <ApiStyleBadge
+                                    apiStyle="openai"
+                                    sx={{
+                                        flex: 1,
+                                        borderRadius: 1,
+                                        transition: 'all 0.2s',
+                                        fontWeight: null,
+                                    }}
+                                />
+                                <ApiStyleBadge
+                                    apiStyle="anthropic"
+                                    sx={{
+                                        flex: 1,
+                                        borderRadius: 1,
+                                        transition: 'all 0.2s',
+                                        fontWeight: null,
+                                    }}
+                                />
+                            </Box>
+                        ) : (
+                            <ApiStyleBadge
+                                apiStyle={apiStyle}
+                                sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    borderRadius: 1,
+                                    transition: 'all 0.2s',
+                                    width: '100%',
+                                    fontWeight: null,
+                                }}
+                            />
+                        )}
                     </Box>
                 )}
 
