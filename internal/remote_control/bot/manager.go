@@ -16,12 +16,28 @@ import (
 
 	"github.com/tingly-dev/tingly-box/agentboot"
 	"github.com/tingly-dev/tingly-box/internal/data/db"
+	"github.com/tingly-dev/tingly-box/internal/hookbridge"
 	"github.com/tingly-dev/tingly-box/internal/remote_control/session"
 	"github.com/tingly-dev/tingly-box/internal/tbclient"
 )
 
+// botSender adapts an imbot.Bot into the hookbridge.Sender interface so
+// the notify module can push text without depending on the imbot
+// package directly.
+type botSender struct {
+	bot imbot.Bot
+}
+
+func (s *botSender) SendText(ctx context.Context, chatID, text string) error {
+	if s == nil || s.bot == nil {
+		return fmt.Errorf("nil bot")
+	}
+	_, err := s.bot.SendMessage(ctx, chatID, &imbot.SendMessageOptions{Text: text})
+	return err
+}
+
 // runBotWithSettings starts a bot using JSON file storage for chat state
-func runBotWithSettings(ctx context.Context, setting BotSetting, dataPath string, sessionMgr *session.Manager, agentBoot *agentboot.AgentBoot, tbClient tbclient.TBClient, pairing *PairingManager, auditLog *audit.Logger, store SettingsStore) error {
+func runBotWithSettings(ctx context.Context, setting BotSetting, dataPath string, sessionMgr *session.Manager, agentBoot *agentboot.AgentBoot, tbClient tbclient.TBClient, pairing *PairingManager, auditLog *audit.Logger, store SettingsStore, bridge *hookbridge.Bridge) error {
 	// Create a JSON-based chat store
 	chatStore, err := NewChatStoreJSON(dataPath)
 	if err != nil {
@@ -104,6 +120,20 @@ func runBotWithSettings(ctx context.Context, setting BotSetting, dataPath string
 	if bot != nil {
 		platform := bot.PlatformInfo().ID
 		cmdRegistry := handler.GetCommandRegistry()
+
+		// Register this bot's IM prompter in the hook bridge so the
+		// notify HTTP handler can drive Claude Code hook approvals
+		// through the same prompter machinery used for the SmartGuide
+		// flow. Unregistered on context cancellation below.
+		if bridge != nil && handler.imPrompter != nil {
+			bridge.Register(&hookbridge.Entry{
+				BotUUID:  setting.UUID,
+				Platform: setting.Platform,
+				Prompter: handler.imPrompter,
+				Sender:   &botSender{bot: bot},
+			})
+			defer bridge.Unregister(setting.UUID)
+		}
 
 		var err error
 		switch platform {
@@ -196,9 +226,10 @@ type Manager struct {
 	sessionMgr *session.Manager
 	agentBoot  *agentboot.AgentBoot
 	msgHandler agentboot.MessageHandler
-	tbClient   tbclient.TBClient // TB Client for SmartGuide model configuration
-	pairing    *PairingManager   // Pairing-code (TOFU) manager
-	audit      *audit.Logger     // Audit logger for security events
+	tbClient   tbclient.TBClient   // TB Client for SmartGuide model configuration
+	pairing    *PairingManager     // Pairing-code (TOFU) manager
+	audit      *audit.Logger       // Audit logger for security events
+	bridge     *hookbridge.Bridge  // Hook bridge for Claude Code IM hooks (optional)
 }
 
 // NewManager creates a new bot manager with a settings store
@@ -213,6 +244,15 @@ func NewManager(store SettingsStore, sessionMgr *session.Manager, agentBoot *age
 		audit:      auditLog,
 		pairing:    NewPairingManager(auditLog),
 	}
+}
+
+// SetHookBridge wires a Claude Code hook bridge so each running bot's
+// IM prompter and bot handle become reachable from the notify HTTP
+// endpoint. Safe to call once at startup before any bot is started.
+func (m *Manager) SetHookBridge(bridge *hookbridge.Bridge) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.bridge = bridge
 }
 
 // PairingManager returns the manager's PairingManager instance. Used by CLI
@@ -388,9 +428,10 @@ func (m *Manager) Start(parentCtx context.Context, uuid string) error {
 	pairing := m.pairing
 	auditLog := m.audit
 	store := m.store
+	bridge := m.bridge
 	go func() {
 		defer close(doneChan) // Signal that goroutine is done
-		if err := runBotWithSettings(ctx, s, dataPath, m.sessionMgr, m.agentBoot, tbClient, pairing, auditLog, store); err != nil {
+		if err := runBotWithSettings(ctx, s, dataPath, m.sessionMgr, m.agentBoot, tbClient, pairing, auditLog, store, bridge); err != nil {
 			logrus.WithError(err).WithField("uuid", uuid).Warn("Bot stopped with error")
 		}
 

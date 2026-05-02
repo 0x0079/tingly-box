@@ -24,6 +24,7 @@ import (
 	"github.com/tingly-dev/tingly-box/internal/data/db"
 	"github.com/tingly-dev/tingly-box/internal/guardrails"
 	guardrailscore "github.com/tingly-dev/tingly-box/internal/guardrails/core"
+	"github.com/tingly-dev/tingly-box/internal/hookbridge"
 	guardrailsevaluate "github.com/tingly-dev/tingly-box/internal/guardrails/evaluate"
 	guardrailsutils "github.com/tingly-dev/tingly-box/internal/guardrails/utils"
 	"github.com/tingly-dev/tingly-box/internal/loadbalance"
@@ -76,6 +77,11 @@ type Server struct {
 
 	// ImBot settings handler (module)
 	imbotSettingsHandler interface{}
+
+	// hookBridge wires Claude Code hook HTTP events to running IM bots.
+	// Lazily constructed in UseUIEndpoints when an imbot settings store
+	// is reachable; nil otherwise (notify falls back to desktop only).
+	hookBridge *hookbridge.Bridge
 
 	// OAuth refresher for OAuth auto-refresh
 	oauthRefresher *background.OAuthRefresher

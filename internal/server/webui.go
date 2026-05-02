@@ -17,6 +17,7 @@ import (
 	assets "github.com/tingly-dev/tingly-box/internal"
 	"github.com/tingly-dev/tingly-box/internal/client"
 	"github.com/tingly-dev/tingly-box/internal/constant"
+	"github.com/tingly-dev/tingly-box/internal/hookbridge"
 	"github.com/tingly-dev/tingly-box/internal/obs"
 	"github.com/tingly-dev/tingly-box/internal/protocol"
 	"github.com/tingly-dev/tingly-box/internal/server/config"
@@ -80,8 +81,20 @@ func (s *Server) UseUIEndpoints(ctx context.Context) {
 	statusHandler := statusline.NewHandler(s.config, s.loadBalancer, statusline.NewCache(), quotaMgr)
 	statusline.RegisterRoutes(s.engine, statusHandler)
 
-	// Claude Code notification hook endpoint (no auth required)
-	notifyHandler := notifymodule.NewHandler()
+	// Claude Code notification hook endpoint (no auth required).
+	// If the bot settings store is reachable, build a binding-aware
+	// handler so PreToolUse / AskUserQuestion / permission events get
+	// routed to a configured IM bot via the hook bridge. Bot start-up
+	// (later in this function) will register prompters into this same
+	// bridge.
+	var notifyHandler *notifymodule.Handler
+	if sm := s.config.StoreManager(); sm != nil && sm.ImBotSettings() != nil {
+		s.hookBridge = hookbridge.New(30 * time.Second)
+		resolver := notifymodule.NewBindingResolver(sm.ImBotSettings())
+		notifyHandler = notifymodule.NewHandlerWithBridge(resolver, s.hookBridge)
+	} else {
+		notifyHandler = notifymodule.NewHandler()
+	}
 	notifymodule.RegisterRoutes(s.engine, notifyHandler)
 
 	// Create route manager
@@ -113,6 +126,14 @@ func (s *Server) UseUIEndpoints(ctx context.Context) {
 		imbot.RegisterRoutes(apiV1, imbotHandler)
 		// Store handler reference for shutdown
 		s.imbotSettingsHandler = imbotHandler
+		// Wire the hook bridge so each running bot's IM prompter is
+		// reachable from /tingly/:scenario/notify for Claude Code hook
+		// approval / question flows.
+		if s.hookBridge != nil {
+			if bm := imbotHandler.BotManager(); bm != nil {
+				bm.SetHookBridge(s.hookBridge)
+			}
+		}
 	}
 
 	// Config apply API routes
