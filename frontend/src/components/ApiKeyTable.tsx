@@ -28,6 +28,7 @@ import type { ProviderQuota } from '@/types/quota';
 import React, {useCallback, useState} from 'react';
 import api from '../services/api';
 import type { Provider } from '../types/provider';
+import { useFeatureFlags } from '@/contexts/FeatureFlagsContext';
 
 interface ApiKeyTableProps {
     providers: Provider[];
@@ -59,6 +60,7 @@ interface ModelListDialogState {
 }
 
 const ApiKeyTable = ({ providers, onEdit, onToggle, onDelete, onNotification, providerQuotas, refreshingQuotas, onQuotaRefresh }: ApiKeyTableProps) => {
+    const { enableFusion } = useFeatureFlags();
     const [tokenModal, setTokenModal] = useState<TokenModalState>({
         open: false,
         providerName: '',
@@ -235,7 +237,7 @@ const ApiKeyTable = ({ providers, onEdit, onToggle, onDelete, onNotification, pr
                             </TableCell>
                             {/* API Style */}
                             <TableCell>
-                                {provider.api_base_openai && provider.api_base_anthropic ? (
+                                {enableFusion && provider.api_base_openai && provider.api_base_anthropic ? (
                                     <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap">
                                         <ApiStyleBadge apiStyle="openai" compact />
                                         <ApiStyleBadge apiStyle="anthropic" compact />

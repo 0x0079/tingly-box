@@ -1,6 +1,6 @@
 import {useFeatureFlags} from '@/contexts/FeatureFlagsContext';
 import { IconBrain, IconShield } from '@tabler/icons-react';
-import { SettingsApplications } from '@mui/icons-material';
+import { SettingsApplications, Hub as HubIcon } from '@mui/icons-material';
 import {Alert, Box, Chip, Tooltip, Typography,} from '@mui/material';
 import React, {useEffect, useState} from 'react';
 import {useTranslation} from 'react-i18next';
@@ -20,6 +20,7 @@ const GlobalExperimentalFeatures: React.FC = () => {
     const [features, setFeatures] = useState<Record<string, boolean>>({});
     const [guardrailsEnabled, setGuardrailsEnabled] = useState(false);
     const [mcpEnabled, setMCPEnabled] = useState(false);
+    const [fusionEnabled, setFusionEnabled] = useState(false);
     const [loading, setLoading] = useState(true);
     const {refresh} = useFeatureFlags();
 
@@ -43,6 +44,10 @@ const GlobalExperimentalFeatures: React.FC = () => {
             // Load MCP flag
             const mcpResult = await api.getScenarioFlag('_global', 'mcp');
             setMCPEnabled(mcpResult?.data?.value || false);
+
+            // Load Fusion Provider flag
+            const fusionResult = await api.getScenarioFlag('_global', 'fusion_provider');
+            setFusionEnabled(fusionResult?.data?.value || false);
 
         } catch (error) {
             console.error('Failed to load global experimental features:', error);
@@ -103,6 +108,24 @@ const GlobalExperimentalFeatures: React.FC = () => {
             })
             .catch((err) => {
                 console.error('Failed to set MCP:', err);
+                loadFeatures();
+            });
+    };
+
+    const toggleFusion = () => {
+        const newValue = !fusionEnabled;
+        api.setScenarioFlag('_global', 'fusion_provider', newValue)
+            .then((result) => {
+                if (result.success) {
+                    setFusionEnabled(newValue);
+                    refresh();
+                } else {
+                    console.error('Failed to set Fusion Provider:', result);
+                    loadFeatures();
+                }
+            })
+            .catch((err) => {
+                console.error('Failed to set Fusion Provider:', err);
                 loadFeatures();
             });
     };
@@ -217,6 +240,35 @@ const GlobalExperimentalFeatures: React.FC = () => {
                 <Alert severity="info" sx={{ mt: 1 }}>
                     <Typography variant="body2">
                         {t('system.experimentalFeatures.mcpEnabledInfo')}
+                    </Typography>
+                </Alert>
+            )}
+
+            {/* Fusion Provider Section */}
+            <Box sx={{ display: 'flex', alignItems: 'center', py: 2, gap: 3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 180 }}>
+                    <HubIcon sx={{ fontSize: '1rem', color: 'text.secondary' }} />
+                    <Typography variant="subtitle2" sx={{ color: 'text.secondary' }}>
+                        {t('system.experimentalFeatures.fusion')}
+                    </Typography>
+                </Box>
+
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1 }}>
+                    <Tooltip title={t('system.experimentalFeatures.enableFusion') + (fusionEnabled ? ` (${t('system.experimentalFeatures.enabled')})` : ` (${t('system.experimentalFeatures.disabled')})`)} arrow>
+                        <Chip
+                            label={`${t('system.experimentalFeatures.fusion')} · ${fusionEnabled ? t('common.on') : t('common.off')}`}
+                            onClick={toggleFusion}
+                            size="small"
+                            sx={{ ...chipStyle(fusionEnabled), cursor: 'pointer', pointerEvents: 'auto' }}
+                        />
+                    </Tooltip>
+                </Box>
+            </Box>
+
+            {fusionEnabled && (
+                <Alert severity="info" sx={{ mt: 1 }}>
+                    <Typography variant="body2">
+                        {t('system.experimentalFeatures.fusionEnabledInfo')}
                     </Typography>
                 </Alert>
             )}

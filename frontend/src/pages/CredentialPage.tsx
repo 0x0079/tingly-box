@@ -22,6 +22,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../services/api';
+import { useFeatureFlags } from '@/contexts/FeatureFlagsContext';
 
 type ProviderFormData = EnhancedProviderFormData;
 
@@ -34,6 +35,7 @@ interface OAuthEditFormData {
 }
 
 const CredentialPage = () => {
+    const { enableFusion } = useFeatureFlags();
     const [searchParams, setSearchParams] = useSearchParams();
     const [providers, setProviders] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -141,11 +143,15 @@ const CredentialPage = () => {
         setLoading(false);
     };
 
-    // Build the body for an add request. When BOTH protocols are checked and
-    // we have base URLs for each, send a single fusion-mode provider (one
-    // entry, two URLs, one credential). Otherwise fall back to a normal
-    // single-protocol provider.
-    const buildAddProviderPayload = () => {
+    // Build the body for an add request. The shape depends on the global
+    // fusion experiment:
+    //
+    // - Flag ON + BOTH protocols + both base URLs available → single
+    //   fusion-mode provider (one entry, two URLs, one credential).
+    // - Flag OFF + BOTH protocols → return an ARRAY of two single-protocol
+    //   payloads, restoring the legacy "create two providers" behavior.
+    // - Single protocol selected → single provider payload (unchanged).
+    const buildAddProviderPayload = (): any | any[] => {
         const protocols =
             (providerFormData as any).protocols as ('openai' | 'anthropic')[] ||
             [providerFormData.apiStyle].filter(Boolean) as ('openai' | 'anthropic')[];
@@ -153,12 +159,12 @@ const CredentialPage = () => {
             | { openai?: string; anthropic?: string }
             | undefined;
 
-        const fusion =
+        const bothProtocols =
             protocols.length === 2 &&
             !!providerBaseUrls?.openai &&
             !!providerBaseUrls?.anthropic;
 
-        if (fusion) {
+        if (bothProtocols && enableFusion) {
             return {
                 name: providerFormData.name,
                 api_base: providerBaseUrls!.openai,
@@ -171,6 +177,32 @@ const CredentialPage = () => {
                 proxy_url: (providerFormData as any).proxyUrl ?? '',
                 auth_type: 'api_key',
             };
+        }
+
+        if (bothProtocols && !enableFusion) {
+            // Legacy split: emit one record per protocol so the user gets
+            // two independent Provider entries sharing the same credential.
+            const baseRecord = {
+                token: providerFormData.token,
+                no_key_required: (providerFormData as any).noKeyRequired || false,
+                enabled: true,
+                proxy_url: (providerFormData as any).proxyUrl ?? '',
+                auth_type: 'api_key',
+            };
+            return [
+                {
+                    ...baseRecord,
+                    name: providerFormData.name,
+                    api_base: providerBaseUrls!.openai,
+                    api_style: 'openai' as const,
+                },
+                {
+                    ...baseRecord,
+                    name: providerFormData.name,
+                    api_base: providerBaseUrls!.anthropic,
+                    api_style: 'anthropic' as const,
+                },
+            ];
         }
 
         const protocol = protocols[0];
@@ -187,26 +219,52 @@ const CredentialPage = () => {
         };
     };
 
+    // Build the body for an edit/update request. When fusion is OFF, omit
+    // the fusion fields entirely so the backend (which ignores them under
+    // flag-off anyway) doesn't get spurious empty-string pointers.
+    const buildEditProviderPayload = () => {
+        const base: any = {
+            name: providerFormData.name,
+            api_base: providerFormData.apiBase,
+            api_style: providerFormData.apiStyle,
+            token: providerFormData.token || undefined,
+            no_key_required: (providerFormData as any).noKeyRequired || false,
+            enabled: providerFormData.enabled,
+            proxy_url: (providerFormData as any).proxyUrl ?? '',
+        };
+        if (enableFusion) {
+            base.api_base_openai = (providerFormData as any).apiBaseOpenAI ?? '';
+            base.api_base_anthropic = (providerFormData as any).apiBaseAnthropic ?? '';
+        }
+        return base;
+    };
+
+    // Submit a single payload OR an array of payloads (legacy split). Returns
+    // a combined success flag and a (joined) error message for the
+    // notification layer.
+    const submitProviderPayloads = async (
+        payload: any | any[],
+        opts?: { force?: boolean }
+    ) => {
+        const list = Array.isArray(payload) ? payload : [payload];
+        const errors: string[] = [];
+        for (const p of list) {
+            const result = opts?.force
+                ? await api.addProvider(p, true)
+                : await api.addProvider(p);
+            if (!result.success) {
+                errors.push(result.error || 'unknown error');
+            }
+        }
+        return { success: errors.length === 0, error: errors.join('; ') };
+    };
+
     // API Key handlers
     const handleProviderSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
         if (apiKeyDialogMode === 'edit') {
-            // Edit mode: single provider update — propagate fusion fields if
-            // the user toggled them in the dialog. Empty-string clears the
-            // field on the server (UpdateProviderRequest pointer fields).
-            const providerData = {
-                name: providerFormData.name,
-                api_base: providerFormData.apiBase,
-                api_style: providerFormData.apiStyle,
-                api_base_openai: (providerFormData as any).apiBaseOpenAI ?? '',
-                api_base_anthropic: (providerFormData as any).apiBaseAnthropic ?? '',
-                token: providerFormData.token || undefined,
-                no_key_required: (providerFormData as any).noKeyRequired || false,
-                enabled: providerFormData.enabled,
-                proxy_url: (providerFormData as any).proxyUrl ?? '',
-            };
-
+            const providerData = buildEditProviderPayload();
             const result = await api.updateProvider(providerFormData.uuid!, providerData);
             if (result.success) {
                 showNotification('Provider updated successfully!', 'success');
@@ -216,8 +274,7 @@ const CredentialPage = () => {
                 showNotification(`Failed to update provider: ${result.error}`, 'error');
             }
         } else {
-            const providerData = buildAddProviderPayload();
-            const result = await api.addProvider(providerData);
+            const result = await submitProviderPayloads(buildAddProviderPayload());
             if (result.success) {
                 showNotification('Provider added successfully!', 'success');
                 setApiKeyDialogOpen(false);
@@ -230,18 +287,7 @@ const CredentialPage = () => {
 
     const handleProviderForceAdd = async () => {
         if (apiKeyDialogMode === 'edit') {
-            const providerData = {
-                name: providerFormData.name,
-                api_base: providerFormData.apiBase,
-                api_style: providerFormData.apiStyle,
-                api_base_openai: (providerFormData as any).apiBaseOpenAI ?? '',
-                api_base_anthropic: (providerFormData as any).apiBaseAnthropic ?? '',
-                token: providerFormData.token || undefined,
-                no_key_required: (providerFormData as any).noKeyRequired || false,
-                enabled: providerFormData.enabled,
-                proxy_url: (providerFormData as any).proxyUrl ?? '',
-            };
-
+            const providerData = buildEditProviderPayload();
             const result = await api.updateProvider(providerFormData.uuid!, providerData);
             if (result.success) {
                 showNotification('Provider updated successfully!', 'success');
@@ -251,15 +297,13 @@ const CredentialPage = () => {
                 showNotification(`Failed to update provider: ${result.error}`, 'error');
             }
         } else {
-            const providerData = buildAddProviderPayload();
-            const result = await api.addProvider(providerData, true);
-
+            const result = await submitProviderPayloads(buildAddProviderPayload(), { force: true });
             if (result.success) {
                 showNotification('Provider added successfully!', 'success');
                 setApiKeyDialogOpen(false);
                 loadProviders();
             } else {
-                showNotification(`Failed to add provider: ${result.error || 'unknown error'}`, 'error');
+                showNotification(`Failed to add provider: ${result.error}`, 'error');
             }
         }
     };

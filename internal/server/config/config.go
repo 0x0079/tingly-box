@@ -1568,6 +1568,11 @@ func (c *Config) GetScenarioFlag(scenario typ.RuleScenario, flagName string) boo
 			return val
 		}
 		return false
+	case FeatureFusionProvider:
+		if val, ok := config.Extensions[FeatureFusionProvider].(bool); ok {
+			return val
+		}
+		return false
 	default:
 		return false
 	}
@@ -1634,6 +1639,11 @@ func (c *Config) SetScenarioFlag(scenario typ.RuleScenario, flagName string, val
 			config.Extensions = make(map[string]interface{})
 		}
 		config.Extensions["mcp"] = value
+	case FeatureFusionProvider:
+		if config.Extensions == nil {
+			config.Extensions = make(map[string]interface{})
+		}
+		config.Extensions[FeatureFusionProvider] = value
 	default:
 		return fmt.Errorf("unknown flag name: %s", flagName)
 	}

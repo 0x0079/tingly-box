@@ -25,6 +25,7 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {type UniqueProvider, useProviderTemplates} from '../services/serviceProviders';
 import {api} from '../services/api';
+import {useFeatureFlags} from '@/contexts/FeatureFlagsContext';
 import {Anthropic, OpenAI} from './BrandIcons';
 import ProviderIcon from './ProviderIcon';
 
@@ -117,6 +118,8 @@ const ProviderFormDialog = ({
     const [useGlobalProxy, setUseGlobalProxy] = useState(false);
     const [globalProxyUrl, setGlobalProxyUrl] = useState('');
 
+    const {enableFusion} = useFeatureFlags();
+
     const allProviders = useProviderTemplates();
 
     // Keep onChange in a ref so we can call it from effects/handlers without
@@ -125,6 +128,14 @@ const ProviderFormDialog = ({
     useEffect(() => {
         onChangeRef.current = onChange;
     });
+
+    // Mirror the fusion flag into a ref so syncProtocolsToParent can read the
+    // current value without being re-created (and thus not re-triggering the
+    // open-effect that hydrates state).
+    const enableFusionRef = useRef(enableFusion);
+    useEffect(() => {
+        enableFusionRef.current = enableFusion;
+    }, [enableFusion]);
 
     const openAICapabilities = useMemo(
         () => detectOpenAICapabilities(selectedProvider),
@@ -280,7 +291,11 @@ const ProviderFormDialog = ({
                     anthropic: provider.baseUrlAnthropic,
                 });
 
-                const fusion = nextOpenAI && nextAnthropic
+                // Fusion-mode is only available when the global experiment is
+                // on. With the flag OFF, picking both protocols falls through
+                // to the legacy two-record split handled by the parent submit.
+                const fusion = enableFusionRef.current
+                    && nextOpenAI && nextAnthropic
                     && !!provider.baseUrlOpenAI && !!provider.baseUrlAnthropic;
 
                 if (fusion) {

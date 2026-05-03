@@ -21,7 +21,7 @@ import (
 func (s *Server) AnthropicMessagesV1Beta(c *gin.Context, req protocol.AnthropicBetaMessagesRequest, proxyModel string, provider *typ.Provider, actualModel string, rule *typ.Rule) {
 	// Resolve fusion endpoint: when the provider has an Anthropic-compatible
 	// fusion URL configured, route there natively to avoid a transform.
-	provider = resolveProviderForClient(provider, protocol.APIStyleAnthropic)
+	provider = s.resolveProviderForClient(provider, protocol.APIStyleAnthropic)
 
 	scenarioType := rule.GetScenario()
 
