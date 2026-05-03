@@ -8,7 +8,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/tingly-dev/tingly-box/agentboot"
-	"github.com/tingly-dev/tingly-box/internal/remote_control/session"
+	"github.com/tingly-dev/tingly-box/internal/remote/channel/imchannel"
+	"github.com/tingly-dev/tingly-box/internal/remote/session"
 	"github.com/tingly-dev/tingly-box/internal/remote_control/smart_guide"
 	"github.com/tingly-dev/tingly-box/internal/tbclient"
 )
@@ -65,7 +66,7 @@ type ExecutorDependencies struct {
 	ChatStore                  ChatStoreInterface
 	SessionMgr                 *SessionManager
 	AgentBoot                  *agentboot.AgentBoot
-	IMPrompter                 *IMPrompter
+	IMPrompter                 *imchannel.IMPrompter
 	FileStore                  *FileStore
 	TBClient                   TBClient
 	TBSessionStore             *SmartGuideSessionStore

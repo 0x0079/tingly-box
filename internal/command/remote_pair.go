@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/tingly-dev/tingly-box/internal/data/db"
-	"github.com/tingly-dev/tingly-box/internal/remote_control/audit"
+	"github.com/tingly-dev/tingly-box/internal/remote/audit"
 	"github.com/tingly-dev/tingly-box/internal/remote_control/bot"
 )
 

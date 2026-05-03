@@ -8,9 +8,10 @@ import (
 	"github.com/tingly-dev/tingly-box/agentboot"
 	"github.com/tingly-dev/tingly-box/imbot"
 	"github.com/tingly-dev/tingly-box/internal/data/db"
-	"github.com/tingly-dev/tingly-box/internal/remote_control/audit"
+	"github.com/tingly-dev/tingly-box/internal/remote/audit"
+	"github.com/tingly-dev/tingly-box/internal/remote/channel/imchannel"
 	"github.com/tingly-dev/tingly-box/internal/remote_control/bot/feature"
-	"github.com/tingly-dev/tingly-box/internal/remote_control/session"
+	"github.com/tingly-dev/tingly-box/internal/remote/session"
 	"github.com/tingly-dev/tingly-box/internal/remote_control/smart_guide"
 	"github.com/tingly-dev/tingly-box/internal/tbclient"
 )
@@ -29,7 +30,7 @@ func NewBotHandler(
 	store SettingsStore,
 ) *BotHandler {
 	// Create IM prompter for permission requests
-	imPrompter := NewIMPrompter(manager)
+	imPrompter := imchannel.NewIMPrompter(manager)
 
 	// Create interaction handler for platform-agnostic interactions
 	interactionHandler := imbot.NewInteractionHandler(manager)

@@ -9,9 +9,9 @@ import (
 	"github.com/tingly-dev/tingly-box/agentboot"
 	mockagent "github.com/tingly-dev/tingly-box/agentboot/mockagent"
 	"github.com/tingly-dev/tingly-box/imbot"
-	"github.com/tingly-dev/tingly-box/internal/remote_control/audit"
+	"github.com/tingly-dev/tingly-box/internal/remote/audit"
 	"github.com/tingly-dev/tingly-box/internal/remote_control/bot/feature"
-	"github.com/tingly-dev/tingly-box/internal/remote_control/session"
+	"github.com/tingly-dev/tingly-box/internal/remote/session"
 )
 
 // TestHarness wires the production BotHandler against a test imbot.Manager

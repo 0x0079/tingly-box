@@ -18,6 +18,7 @@ import (
 	"github.com/tingly-dev/tingly-box/internal/client"
 	"github.com/tingly-dev/tingly-box/internal/constant"
 	"github.com/tingly-dev/tingly-box/internal/obs"
+	"github.com/tingly-dev/tingly-box/internal/remote/audit"
 	"github.com/tingly-dev/tingly-box/internal/remote/binding"
 	"github.com/tingly-dev/tingly-box/internal/remote/channel"
 	"github.com/tingly-dev/tingly-box/internal/remote/interaction"
@@ -101,7 +102,8 @@ func (s *Server) UseUIEndpoints(ctx context.Context) {
 		s.scenarioRegistry = remotescenario.NewRegistry()
 		s.scenarioRegistry.Register(claudecode.New(s.interactionRegistry))
 		resolver := binding.NewResolver(sm.ImBotSettings())
-		runtime := remotescenario.NewDefaultRuntime(s.channelRegistry, resolver, nil)
+		auditLog := audit.NewLogger(audit.Config{Console: true, MaxEntries: 1000})
+		runtime := remotescenario.NewDefaultRuntime(s.channelRegistry, resolver, runtimeAuditSink(auditLog))
 		notifyHandler = notifymodule.NewHandlerWithRouting(s.scenarioRegistry, s.interactionRegistry, runtime)
 	} else {
 		notifyHandler = notifymodule.NewHandler()
@@ -1075,6 +1077,29 @@ func (s *Server) useWebStaticEndpoints(engine *gin.Engine) {
 
 		s.UseIndexHTML(c)
 	})
+}
+
+// runtimeAuditSink adapts an audit.Logger into the AuditFunc the
+// scenario runtime hands to plugins. Plugin actions (e.g.
+// claude_code.interactive.start / .done / .error) land here as audit
+// entries with structured details.
+func runtimeAuditSink(log *audit.Logger) remotescenario.AuditFunc {
+	if log == nil {
+		return nil
+	}
+	return func(action string, fields map[string]any) {
+		details := map[string]interface{}{}
+		for k, v := range fields {
+			details[k] = v
+		}
+		log.Log(audit.Entry{
+			Timestamp: time.Now(),
+			Level:     audit.LevelInfo,
+			Action:    action,
+			Success:   true,
+			Details:   details,
+		})
+	}
 }
 
 // GetShutdownChannel returns the shutdown channel for the main process to listen on

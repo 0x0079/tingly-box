@@ -8,9 +8,10 @@ import (
 
 	"github.com/tingly-dev/tingly-box/agentboot"
 	"github.com/tingly-dev/tingly-box/imbot"
-	"github.com/tingly-dev/tingly-box/internal/remote_control/audit"
+	"github.com/tingly-dev/tingly-box/internal/remote/audit"
+	"github.com/tingly-dev/tingly-box/internal/remote/channel/imchannel"
 	"github.com/tingly-dev/tingly-box/internal/remote_control/bot/feature"
-	"github.com/tingly-dev/tingly-box/internal/remote_control/session"
+	"github.com/tingly-dev/tingly-box/internal/remote/session"
 	"github.com/tingly-dev/tingly-box/internal/remote_control/smart_guide"
 	"github.com/tingly-dev/tingly-box/internal/tbclient"
 )
@@ -24,7 +25,7 @@ type BotHandler struct {
 	agentBoot        *agentboot.AgentBoot
 	directoryBrowser *feature.DirectoryBrowser
 	manager          *imbot.Manager
-	imPrompter       *IMPrompter
+	imPrompter       *imchannel.IMPrompter
 	fileStore        *FileStore
 	interaction      *imbot.InteractionHandler // New interaction handler
 	tbClient         tbclient.TBClient         // TB Client for model configuration

@@ -15,6 +15,7 @@ import (
 	"github.com/tingly-dev/tingly-box/internal/data/db"
 	"github.com/tingly-dev/tingly-box/internal/remote/binding"
 	"github.com/tingly-dev/tingly-box/internal/remote/channel"
+	"github.com/tingly-dev/tingly-box/internal/remote/channel/autochannel"
 	"github.com/tingly-dev/tingly-box/internal/remote/interaction"
 	"github.com/tingly-dev/tingly-box/internal/remote/scenario"
 	"github.com/tingly-dev/tingly-box/internal/remote/scenario/builtin/claudecode"
@@ -214,5 +215,83 @@ func TestNotifyPushFallsBackToDesktopWhenUnregistered(t *testing.T) {
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
+// TestNotifyAndWait_AutoChannelHeadless wires the claudecode plugin to
+// an autochannel (no IM, no human) and confirms that a PreToolUse hook
+// gets an immediate decision via the same HTTP shape as the IM path.
+//
+// Channel abstraction proof: nothing in this test path imports imbot
+// or any IM platform — the plugin's Trigger goroutine does its work
+// purely through the autochannel.Channel implementation.
+func TestNotifyAndWait_AutoChannelHeadless(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	store := &fakeStore{settings: []db.Settings{{
+		UUID:      "auto",
+		Platform:  "auto",
+		Enabled:   true,
+		Scenarios: `[{"name":"claude_code","chat_id":"headless"}]`,
+	}}}
+	resolver := binding.NewResolver(store)
+
+	channels := channel.NewRegistry()
+	channels.Register(autochannel.New("auto",
+		autochannel.Policy{OnPermission: autochannel.DecisionAllow}, nil))
+
+	results := interaction.New[interaction.Result](30 * time.Second)
+	plugin := claudecode.New(results)
+	scenarios := scenario.NewRegistry()
+	scenarios.Register(plugin)
+	runtime := scenario.NewDefaultRuntime(channels, resolver, nil)
+	handler := NewHandlerWithRouting(scenarios, results, runtime)
+
+	router := gin.New()
+	RegisterRoutes(router, handler)
+	srv := httptest.NewServer(router)
+	defer srv.Close()
+
+	body := `{"session_id":"s1","hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":"{\"command\":\"ls\"}"}`
+	req, _ := http.NewRequest(http.MethodPost, srv.URL+"/tingly/claude_code/notify", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d", resp.StatusCode)
+	}
+	var initial map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&initial); err != nil {
+		t.Fatal(err)
+	}
+	waitURL, _ := initial["wait_url"].(string)
+	if waitURL == "" {
+		t.Fatalf("missing wait_url: %+v", initial)
+	}
+
+	// Autochannel resolves immediately, so the very first wait sees
+	// the answer (cached) without any signal.
+	resp2, err := http.Get(srv.URL + waitURL + "?timeout=2s")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp2.Body.Close()
+	if resp2.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp2.StatusCode)
+	}
+	var final map[string]interface{}
+	if err := json.NewDecoder(resp2.Body).Decode(&final); err != nil {
+		t.Fatal(err)
+	}
+	if final["status"] != "answered" {
+		t.Fatalf("status = %v", final["status"])
+	}
+	dec, _ := final["decision"].(map[string]interface{})
+	hso, _ := dec["hookSpecificOutput"].(map[string]interface{})
+	if hso["permissionDecision"] != "allow" {
+		t.Fatalf("expected allow from auto-policy, got %v", hso["permissionDecision"])
 	}
 }
