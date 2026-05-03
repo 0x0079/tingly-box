@@ -37,6 +37,10 @@ type ProviderRecord struct {
 	Tags          string `gorm:"column:tags;type:text"` // JSON array
 	LastUpdated   string `gorm:"column:last_updated"`
 
+	// Fusion-mode optional fields. Independent of APIBase/APIStyle.
+	APIBaseOpenAI    string `gorm:"column:api_base_openai"`
+	APIBaseAnthropic string `gorm:"column:api_base_anthropic"`
+
 	// Credential fields - stored with provider as a unit
 	// For api_key auth: stores the API key
 	// For oauth auth: stores OAuth access token
@@ -59,16 +63,18 @@ func (ProviderRecord) TableName() string {
 // toProvider converts a ProviderRecord to typ.Provider
 func (r *ProviderRecord) toProvider() *typ.Provider {
 	provider := &typ.Provider{
-		UUID:          r.UUID,
-		Name:          r.Name,
-		APIBase:       r.APIBase,
-		APIStyle:      protocol.APIStyle(r.APIStyle),
-		AuthType:      typ.AuthType(r.AuthType),
-		NoKeyRequired: r.NoKeyRequired,
-		Enabled:       r.Enabled,
-		ProxyURL:      r.ProxyURL,
-		Timeout:       r.Timeout,
-		LastUpdated:   r.LastUpdated,
+		UUID:             r.UUID,
+		Name:             r.Name,
+		APIBase:          r.APIBase,
+		APIStyle:         protocol.APIStyle(r.APIStyle),
+		APIBaseOpenAI:    r.APIBaseOpenAI,
+		APIBaseAnthropic: r.APIBaseAnthropic,
+		AuthType:         typ.AuthType(r.AuthType),
+		NoKeyRequired:    r.NoKeyRequired,
+		Enabled:          r.Enabled,
+		ProxyURL:         r.ProxyURL,
+		Timeout:          r.Timeout,
+		LastUpdated:      r.LastUpdated,
 	}
 
 	// Parse tags JSON
@@ -102,18 +108,20 @@ func toRecord(p *typ.Provider) *ProviderRecord {
 	now := time.Now()
 
 	record := &ProviderRecord{
-		UUID:          p.UUID,
-		Name:          p.Name,
-		APIBase:       p.APIBase,
-		APIStyle:      string(p.APIStyle),
-		AuthType:      string(p.AuthType),
-		NoKeyRequired: p.NoKeyRequired,
-		Enabled:       p.Enabled,
-		ProxyURL:      p.ProxyURL,
-		Timeout:       p.Timeout,
-		LastUpdated:   p.LastUpdated,
-		CreatedAt:     now,
-		UpdatedAt:     now,
+		UUID:             p.UUID,
+		Name:             p.Name,
+		APIBase:          p.APIBase,
+		APIStyle:         string(p.APIStyle),
+		APIBaseOpenAI:    p.APIBaseOpenAI,
+		APIBaseAnthropic: p.APIBaseAnthropic,
+		AuthType:         string(p.AuthType),
+		NoKeyRequired:    p.NoKeyRequired,
+		Enabled:          p.Enabled,
+		ProxyURL:         p.ProxyURL,
+		Timeout:          p.Timeout,
+		LastUpdated:      p.LastUpdated,
+		CreatedAt:        now,
+		UpdatedAt:        now,
 	}
 
 	// Initialize OAuth fields if OAuthDetail exists
@@ -152,6 +160,8 @@ func updateRecordFromProvider(record *ProviderRecord, p *typ.Provider) {
 	record.Name = p.Name
 	record.APIBase = p.APIBase
 	record.APIStyle = string(p.APIStyle)
+	record.APIBaseOpenAI = p.APIBaseOpenAI
+	record.APIBaseAnthropic = p.APIBaseAnthropic
 	record.AuthType = string(p.AuthType)
 	record.NoKeyRequired = p.NoKeyRequired
 	record.Enabled = p.Enabled

@@ -112,9 +112,64 @@ type Provider struct {
 	Models        []string `json:"models,omitempty"`       // Available models for this provider (cached)
 	LastUpdated   string   `json:"last_updated,omitempty"` // Last update timestamp
 
+	// Fusion-mode optional fields. Independent of APIBase/APIStyle.
+	// When set, the dispatcher prefers the URL whose protocol natively matches
+	// the inbound client request (no transform needed). Falls back to APIBase
+	// + APIStyle when no fusion URL is configured for the inbound style.
+	APIBaseOpenAI    string `json:"api_base_openai,omitempty"`
+	APIBaseAnthropic string `json:"api_base_anthropic,omitempty"`
+
 	// Auth configuration
 	AuthType    AuthType     `json:"auth_type"`              // api_key or oauth
 	OAuthDetail *OAuthDetail `json:"oauth_detail,omitempty"` // OAuth credentials (only for oauth auth type)
+}
+
+// HasFusionURL reports whether the provider has a fusion URL configured for
+// the given inbound client style.
+func (p *Provider) HasFusionURL(clientStyle APIStyle) bool {
+	if p == nil {
+		return false
+	}
+	switch clientStyle {
+	case APIStyleOpenAI:
+		return p.APIBaseOpenAI != ""
+	case APIStyleAnthropic:
+		return p.APIBaseAnthropic != ""
+	}
+	return false
+}
+
+// IsFusion reports whether the provider has BOTH fusion URLs configured.
+// OAuth providers are never considered fusion (issuer-bound to one protocol).
+func (p *Provider) IsFusion() bool {
+	if p == nil || p.AuthType == AuthTypeOAuth {
+		return false
+	}
+	return p.APIBaseOpenAI != "" && p.APIBaseAnthropic != ""
+}
+
+// ResolveEndpoint returns the (baseURL, providerStyle) pair to use for an
+// inbound request whose client protocol is clientStyle. When a matching
+// fusion URL exists, it is preferred (so no protocol translation is needed).
+// Otherwise the legacy APIBase + APIStyle pair is returned, preserving
+// backward-compatible single-protocol behavior.
+func (p *Provider) ResolveEndpoint(clientStyle APIStyle) (string, APIStyle) {
+	if p == nil {
+		return "", ""
+	}
+	if p.AuthType != AuthTypeOAuth {
+		switch clientStyle {
+		case APIStyleOpenAI:
+			if p.APIBaseOpenAI != "" {
+				return p.APIBaseOpenAI, APIStyleOpenAI
+			}
+		case APIStyleAnthropic:
+			if p.APIBaseAnthropic != "" {
+				return p.APIBaseAnthropic, APIStyleAnthropic
+			}
+		}
+	}
+	return p.APIBase, p.APIStyle
 }
 
 // GetAccessToken returns the access token based on auth type

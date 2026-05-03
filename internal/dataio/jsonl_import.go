@@ -300,18 +300,20 @@ func (i *JSONLImporter) importProvider(globalConfig *config.Config, p *ProviderD
 
 	// Create new provider with new UUID
 	newProvider := &typ.Provider{
-		UUID:        providerUUID,
-		Name:        p.Name,
-		APIBase:     p.APIBase,
-		APIStyle:    protocol.APIStyle(p.APIStyle),
-		AuthType:    typ.AuthType(p.AuthType),
-		Token:       p.Token,
-		OAuthDetail: p.OAuthDetail,
-		Enabled:     p.Enabled,
-		ProxyURL:    p.ProxyURL,
-		Timeout:     p.Timeout,
-		Tags:        p.Tags,
-		Models:      p.Models,
+		UUID:             providerUUID,
+		Name:             p.Name,
+		APIBase:          p.APIBase,
+		APIStyle:         protocol.APIStyle(p.APIStyle),
+		APIBaseOpenAI:    p.APIBaseOpenAI,
+		APIBaseAnthropic: p.APIBaseAnthropic,
+		AuthType:         typ.AuthType(p.AuthType),
+		Token:            p.Token,
+		OAuthDetail:      p.OAuthDetail,
+		Enabled:          p.Enabled,
+		ProxyURL:         p.ProxyURL,
+		Timeout:          p.Timeout,
+		Tags:             p.Tags,
+		Models:           p.Models,
 	}
 
 	if err := globalConfig.AddProvider(newProvider); err != nil {

@@ -34,17 +34,19 @@ type RuleData struct {
 
 // ProviderData represents the provider data (used for both export and import)
 type ProviderData struct {
-	Type        string           `json:"type"`
-	UUID        string           `json:"uuid"`
-	Name        string           `json:"name"`
-	APIBase     string           `json:"api_base"`
-	APIStyle    string           `json:"api_style"`
-	AuthType    string           `json:"auth_type"`
-	Token       string           `json:"token"`
-	OAuthDetail *typ.OAuthDetail `json:"oauth_detail"`
-	Enabled     bool             `json:"enabled"`
-	ProxyURL    string           `json:"proxy_url"`
-	Timeout     int64            `json:"timeout"`
-	Tags        []string         `json:"tags"`
-	Models      []string         `json:"models"`
+	Type             string           `json:"type"`
+	UUID             string           `json:"uuid"`
+	Name             string           `json:"name"`
+	APIBase          string           `json:"api_base"`
+	APIStyle         string           `json:"api_style"`
+	APIBaseOpenAI    string           `json:"api_base_openai,omitempty"`
+	APIBaseAnthropic string           `json:"api_base_anthropic,omitempty"`
+	AuthType         string           `json:"auth_type"`
+	Token            string           `json:"token"`
+	OAuthDetail      *typ.OAuthDetail `json:"oauth_detail"`
+	Enabled          bool             `json:"enabled"`
+	ProxyURL         string           `json:"proxy_url"`
+	Timeout          int64            `json:"timeout"`
+	Tags             []string         `json:"tags"`
+	Models           []string         `json:"models"`
 }

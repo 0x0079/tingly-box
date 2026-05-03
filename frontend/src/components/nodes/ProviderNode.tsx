@@ -14,6 +14,7 @@ import {
 import { styled } from '@mui/material/styles';
 import React, { useState } from 'react';
 import type { Provider } from '@/types/provider.ts';
+import { useFeatureFlags } from '@/contexts/FeatureFlagsContext';
 import { ApiStyleBadge } from '../ApiStyleBadge.tsx';
 import { ProbeV2Menu } from '../probe';
 import type { ConfigProvider } from '../RoutingGraphTypes.ts';
@@ -67,6 +68,7 @@ export const ProviderNode: React.FC<ProviderNodeComponentProps> = ({
     onDelete,
     onNodeClick
 }) => {
+    const { enableFusion } = useFeatureFlags();
     const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
     const [probeAnchorEl, setProbeAnchorEl] = useState<null | HTMLElement>(null);
     const menuOpen = Boolean(menuAnchorEl);
@@ -177,21 +179,44 @@ export const ProviderNode: React.FC<ProviderNodeComponentProps> = ({
                 {/* Divider */}
                 <Divider sx={NODE_LAYER_STYLES.divider} />
 
-                {/* Bottom Layer - API Style Badge */}
+                {/* Bottom Layer - API Style Badge(s) */}
                 {provider.provider && (
                     <Box sx={NODE_LAYER_STYLES.bottomLayer}>
-                        <ApiStyleBadge
-                            apiStyle={apiStyle}
-                            sx={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                borderRadius: 1,
-                                transition: 'all 0.2s',
-                                width: '100%',
-                                fontWeight: null,
-                            }}
-                        />
+                        {enableFusion && providerInfo.provider?.api_base_openai && providerInfo.provider?.api_base_anthropic ? (
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, width: '100%' }}>
+                                <ApiStyleBadge
+                                    apiStyle="openai"
+                                    sx={{
+                                        flex: 1,
+                                        borderRadius: 1,
+                                        transition: 'all 0.2s',
+                                        fontWeight: null,
+                                    }}
+                                />
+                                <ApiStyleBadge
+                                    apiStyle="anthropic"
+                                    sx={{
+                                        flex: 1,
+                                        borderRadius: 1,
+                                        transition: 'all 0.2s',
+                                        fontWeight: null,
+                                    }}
+                                />
+                            </Box>
+                        ) : (
+                            <ApiStyleBadge
+                                apiStyle={apiStyle}
+                                sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    borderRadius: 1,
+                                    transition: 'all 0.2s',
+                                    width: '100%',
+                                    fontWeight: null,
+                                }}
+                            />
+                        )}
                     </Box>
                 )}
 

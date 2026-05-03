@@ -25,6 +25,7 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {type UniqueProvider, useProviderTemplates} from '../services/serviceProviders';
 import {api} from '../services/api';
+import {useFeatureFlags} from '@/contexts/FeatureFlagsContext';
 import {Anthropic, OpenAI} from './BrandIcons';
 import ProviderIcon from './ProviderIcon';
 
@@ -37,8 +38,13 @@ export interface EnhancedProviderFormData {
     noKeyRequired?: boolean;
     enabled?: boolean;
     proxyUrl?: string;
+    authType?: 'api_key' | 'oauth';
     protocols?: ('openai' | 'anthropic')[];
     providerBaseUrls?: { openai?: string; anthropic?: string };
+    // Fusion-mode optional URLs. When both are set, the backend routes per
+    // inbound protocol natively. When only one is set, falls back to apiBase.
+    apiBaseOpenAI?: string;
+    apiBaseAnthropic?: string;
 }
 
 interface PresetProviderFormDialogProps {
@@ -112,6 +118,8 @@ const ProviderFormDialog = ({
     const [useGlobalProxy, setUseGlobalProxy] = useState(false);
     const [globalProxyUrl, setGlobalProxyUrl] = useState('');
 
+    const {enableFusion} = useFeatureFlags();
+
     const allProviders = useProviderTemplates();
 
     // Keep onChange in a ref so we can call it from effects/handlers without
@@ -120,6 +128,14 @@ const ProviderFormDialog = ({
     useEffect(() => {
         onChangeRef.current = onChange;
     });
+
+    // Mirror the fusion flag into a ref so syncProtocolsToParent can read the
+    // current value without being re-created (and thus not re-triggering the
+    // open-effect that hydrates state).
+    const enableFusionRef = useRef(enableFusion);
+    useEffect(() => {
+        enableFusionRef.current = enableFusion;
+    }, [enableFusion]);
 
     const openAICapabilities = useMemo(
         () => detectOpenAICapabilities(selectedProvider),
@@ -193,8 +209,12 @@ const ProviderFormDialog = ({
         setVerificationResult(null);
 
         if (mode === 'edit') {
-            setProtocolOpenAI(data.apiStyle === 'openai');
-            setProtocolAnthropic(data.apiStyle === 'anthropic');
+            // Hydrate fusion state: existing fusion URLs imply the protocol
+            // is already enabled, regardless of the legacy apiStyle pin.
+            const hasFusionOpenAI = !!data.apiBaseOpenAI;
+            const hasFusionAnthropic = !!data.apiBaseAnthropic;
+            setProtocolOpenAI(hasFusionOpenAI || data.apiStyle === 'openai');
+            setProtocolAnthropic(hasFusionAnthropic || data.apiStyle === 'anthropic');
             setSelectedProvider(matchingProvider);
             setProviderInputValue(
                 matchingProvider ? matchingProvider.alias || matchingProvider.name : data.apiBase
@@ -241,6 +261,16 @@ const ProviderFormDialog = ({
 
     // Helper: push protocol-related fields to parent in one batch.
     // Called only from user-driven handlers (not from a render-triggered effect).
+    //
+    // Fusion-mode rule: when BOTH protocols are checked and we have a known
+    // template (provider) with both base URLs, emit `apiBaseOpenAI` +
+    // `apiBaseAnthropic` so the backend stores them as fusion fields. The
+    // legacy `apiBase`/`apiStyle` still get populated (set to the openai URL
+    // by convention) so single-protocol consumers keep working.
+    //
+    // When only ONE protocol is checked, behavior matches the previous
+    // single-protocol UX: pick the matching URL into `apiBase` and clear the
+    // other-side fusion field.
     const syncProtocolsToParent = useCallback(
         (
             nextOpenAI: boolean,
@@ -260,11 +290,37 @@ const ProviderFormDialog = ({
                     openai: provider.baseUrlOpenAI,
                     anthropic: provider.baseUrlAnthropic,
                 });
-                if (nextOpenAI && provider.baseUrlOpenAI) {
+
+                // Fusion-mode is only available when the global experiment is
+                // on. With the flag OFF, picking both protocols falls through
+                // to the legacy two-record split handled by the parent submit.
+                const fusion = enableFusionRef.current
+                    && nextOpenAI && nextAnthropic
+                    && !!provider.baseUrlOpenAI && !!provider.baseUrlAnthropic;
+
+                if (fusion) {
+                    cb('apiBaseOpenAI', provider.baseUrlOpenAI);
+                    cb('apiBaseAnthropic', provider.baseUrlAnthropic);
+                    // Use the OpenAI URL as the legacy primary so single-
+                    // protocol consumers (model probes, model list, etc.)
+                    // see a populated apiBase.
                     cb('apiBase', provider.baseUrlOpenAI);
+                } else if (nextOpenAI && provider.baseUrlOpenAI) {
+                    cb('apiBase', provider.baseUrlOpenAI);
+                    cb('apiBaseOpenAI', '');
+                    cb('apiBaseAnthropic', '');
                 } else if (nextAnthropic && provider.baseUrlAnthropic) {
                     cb('apiBase', provider.baseUrlAnthropic);
+                    cb('apiBaseOpenAI', '');
+                    cb('apiBaseAnthropic', '');
+                } else {
+                    cb('apiBaseOpenAI', '');
+                    cb('apiBaseAnthropic', '');
                 }
+            } else {
+                // Free-form (no template) — fusion requires a known template.
+                cb('apiBaseOpenAI', '');
+                cb('apiBaseAnthropic', '');
             }
         },
         []
@@ -280,8 +336,12 @@ const ProviderFormDialog = ({
         }
     };
 
+    // OAuth-bound providers are issuer-locked to a single protocol; fusion
+    // is api_key only.
+    const fusionLocked = data.authType === 'oauth';
+
     const toggleOpenAIProtocol = () => {
-        if (mode === 'edit') return;
+        if (fusionLocked) return;
         if (selectedProvider && !selectedProvider.supportsOpenAI) return;
         const next = !protocolOpenAI;
         setProtocolOpenAI(next);
@@ -290,7 +350,7 @@ const ProviderFormDialog = ({
     };
 
     const toggleAnthropicProtocol = () => {
-        if (mode === 'edit') return;
+        if (fusionLocked) return;
         if (selectedProvider && !selectedProvider.supportsAnthropic) return;
         const next = !protocolAnthropic;
         setProtocolAnthropic(next);
@@ -564,12 +624,12 @@ const ProviderFormDialog = ({
                                         borderRadius: 1,
                                         px: 1.5,
                                         py: 1,
-                                        cursor: mode === 'edit' ? 'not-allowed' : 'pointer',
+                                        cursor: fusionLocked ? 'not-allowed' : 'pointer',
                                         transition: 'all 0.15s',
                                         bgcolor: protocolOpenAI ? 'action.selected' : 'transparent',
                                         '&:hover': {
                                             bgcolor:
-                                                mode === 'edit'
+                                                fusionLocked
                                                     ? protocolOpenAI
                                                         ? 'action.selected'
                                                         : 'transparent'
@@ -619,7 +679,7 @@ const ProviderFormDialog = ({
                                             size="small"
                                             checked={protocolOpenAI}
                                             disabled={
-                                                mode === 'edit' ||
+                                                fusionLocked ||
                                                 (selectedProvider ? !selectedProvider.supportsOpenAI : false)
                                             }
                                             sx={{p: 0, mt: -0.5}}
@@ -634,12 +694,12 @@ const ProviderFormDialog = ({
                                         borderRadius: 1,
                                         px: 1.5,
                                         py: 1,
-                                        cursor: mode === 'edit' ? 'not-allowed' : 'pointer',
+                                        cursor: fusionLocked ? 'not-allowed' : 'pointer',
                                         transition: 'all 0.15s',
                                         bgcolor: protocolAnthropic ? 'action.selected' : 'transparent',
                                         '&:hover': {
                                             bgcolor:
-                                                mode === 'edit'
+                                                fusionLocked
                                                     ? protocolAnthropic
                                                         ? 'action.selected'
                                                         : 'transparent'
@@ -671,7 +731,7 @@ const ProviderFormDialog = ({
                                             size="small"
                                             checked={protocolAnthropic}
                                             disabled={
-                                                mode === 'edit' ||
+                                                fusionLocked ||
                                                 (selectedProvider ? !selectedProvider.supportsAnthropic : false)
                                             }
                                             sx={{p: 0, mt: -0.5}}

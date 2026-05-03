@@ -22,6 +22,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../services/api';
+import { useFeatureFlags } from '@/contexts/FeatureFlagsContext';
 
 type ProviderFormData = EnhancedProviderFormData;
 
@@ -34,6 +35,7 @@ interface OAuthEditFormData {
 }
 
 const CredentialPage = () => {
+    const { enableFusion } = useFeatureFlags();
     const [searchParams, setSearchParams] = useSearchParams();
     const [providers, setProviders] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -141,22 +143,128 @@ const CredentialPage = () => {
         setLoading(false);
     };
 
+    // Build the body for an add request. The shape depends on the global
+    // fusion experiment:
+    //
+    // - Flag ON + BOTH protocols + both base URLs available → single
+    //   fusion-mode provider (one entry, two URLs, one credential).
+    // - Flag OFF + BOTH protocols → return an ARRAY of two single-protocol
+    //   payloads, restoring the legacy "create two providers" behavior.
+    // - Single protocol selected → single provider payload (unchanged).
+    const buildAddProviderPayload = (): any | any[] => {
+        const protocols =
+            (providerFormData as any).protocols as ('openai' | 'anthropic')[] ||
+            [providerFormData.apiStyle].filter(Boolean) as ('openai' | 'anthropic')[];
+        const providerBaseUrls = (providerFormData as any).providerBaseUrls as
+            | { openai?: string; anthropic?: string }
+            | undefined;
+
+        const bothProtocols =
+            protocols.length === 2 &&
+            !!providerBaseUrls?.openai &&
+            !!providerBaseUrls?.anthropic;
+
+        if (bothProtocols && enableFusion) {
+            return {
+                name: providerFormData.name,
+                api_base: providerBaseUrls!.openai,
+                api_style: 'openai' as const,
+                api_base_openai: providerBaseUrls!.openai,
+                api_base_anthropic: providerBaseUrls!.anthropic,
+                token: providerFormData.token,
+                no_key_required: (providerFormData as any).noKeyRequired || false,
+                enabled: true,
+                proxy_url: (providerFormData as any).proxyUrl ?? '',
+                auth_type: 'api_key',
+            };
+        }
+
+        if (bothProtocols && !enableFusion) {
+            // Legacy split: emit one record per protocol so the user gets
+            // two independent Provider entries sharing the same credential.
+            const baseRecord = {
+                token: providerFormData.token,
+                no_key_required: (providerFormData as any).noKeyRequired || false,
+                enabled: true,
+                proxy_url: (providerFormData as any).proxyUrl ?? '',
+                auth_type: 'api_key',
+            };
+            return [
+                {
+                    ...baseRecord,
+                    name: providerFormData.name,
+                    api_base: providerBaseUrls!.openai,
+                    api_style: 'openai' as const,
+                },
+                {
+                    ...baseRecord,
+                    name: providerFormData.name,
+                    api_base: providerBaseUrls!.anthropic,
+                    api_style: 'anthropic' as const,
+                },
+            ];
+        }
+
+        const protocol = protocols[0];
+        const apiBase = providerBaseUrls?.[protocol] || providerFormData.apiBase;
+        return {
+            name: providerFormData.name,
+            api_base: apiBase,
+            api_style: protocol,
+            token: providerFormData.token,
+            no_key_required: (providerFormData as any).noKeyRequired || false,
+            enabled: true,
+            proxy_url: (providerFormData as any).proxyUrl ?? '',
+            auth_type: 'api_key',
+        };
+    };
+
+    // Build the body for an edit/update request. When fusion is OFF, omit
+    // the fusion fields entirely so the backend (which ignores them under
+    // flag-off anyway) doesn't get spurious empty-string pointers.
+    const buildEditProviderPayload = () => {
+        const base: any = {
+            name: providerFormData.name,
+            api_base: providerFormData.apiBase,
+            api_style: providerFormData.apiStyle,
+            token: providerFormData.token || undefined,
+            no_key_required: (providerFormData as any).noKeyRequired || false,
+            enabled: providerFormData.enabled,
+            proxy_url: (providerFormData as any).proxyUrl ?? '',
+        };
+        if (enableFusion) {
+            base.api_base_openai = (providerFormData as any).apiBaseOpenAI ?? '';
+            base.api_base_anthropic = (providerFormData as any).apiBaseAnthropic ?? '';
+        }
+        return base;
+    };
+
+    // Submit a single payload OR an array of payloads (legacy split). Returns
+    // a combined success flag and a (joined) error message for the
+    // notification layer.
+    const submitProviderPayloads = async (
+        payload: any | any[],
+        opts?: { force?: boolean }
+    ) => {
+        const list = Array.isArray(payload) ? payload : [payload];
+        const errors: string[] = [];
+        for (const p of list) {
+            const result = opts?.force
+                ? await api.addProvider(p, true)
+                : await api.addProvider(p);
+            if (!result.success) {
+                errors.push(result.error || 'unknown error');
+            }
+        }
+        return { success: errors.length === 0, error: errors.join('; ') };
+    };
+
     // API Key handlers
     const handleProviderSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
         if (apiKeyDialogMode === 'edit') {
-            // Edit mode: single provider update
-            const providerData = {
-                name: providerFormData.name,
-                api_base: providerFormData.apiBase,
-                api_style: providerFormData.apiStyle,
-                token: providerFormData.token || undefined,
-                no_key_required: (providerFormData as any).noKeyRequired || false,
-                enabled: providerFormData.enabled,
-                proxy_url: (providerFormData as any).proxyUrl ?? '',
-            };
-
+            const providerData = buildEditProviderPayload();
             const result = await api.updateProvider(providerFormData.uuid!, providerData);
             if (result.success) {
                 showNotification('Provider updated successfully!', 'success');
@@ -166,58 +274,20 @@ const CredentialPage = () => {
                 showNotification(`Failed to update provider: ${result.error}`, 'error');
             }
         } else {
-            // Add mode: support multi-protocol
-            const protocols = (providerFormData as any).protocols as ('openai' | 'anthropic')[] || [providerFormData.apiStyle].filter(Boolean);
-            const providerBaseUrls = (providerFormData as any).providerBaseUrls as { openai?: string; anthropic?: string } | undefined;
-
-            let allSuccess = true;
-            let lastError = '';
-
-            for (const protocol of protocols) {
-                const apiBase = providerBaseUrls?.[protocol] || providerFormData.apiBase;
-                const providerData = {
-                    name: protocols.length > 1
-                        ? `${providerFormData.name} (${protocol === 'openai' ? 'OpenAI' : 'Anthropic'})`
-                        : providerFormData.name,
-                    api_base: apiBase,
-                    api_style: protocol,
-                    token: providerFormData.token,
-                    no_key_required: (providerFormData as any).noKeyRequired || false,
-                    enabled: true,
-                    proxy_url: (providerFormData as any).proxyUrl ?? '',
-                    auth_type: 'api_key',
-                };
-
-                const result = await api.addProvider(providerData);
-                if (!result.success) {
-                    allSuccess = false;
-                    lastError = result.error;
-                }
-            }
-
-            if (allSuccess) {
-                const count = protocols.length;
-                showNotification(`${count > 1 ? `${count} providers` : 'Provider'} added successfully!`, 'success');
+            const result = await submitProviderPayloads(buildAddProviderPayload());
+            if (result.success) {
+                showNotification('Provider added successfully!', 'success');
                 setApiKeyDialogOpen(false);
                 loadProviders();
             } else {
-                showNotification(`Failed to add provider: ${lastError}`, 'error');
+                showNotification(`Failed to add provider: ${result.error}`, 'error');
             }
         }
     };
 
     const handleProviderForceAdd = async () => {
         if (apiKeyDialogMode === 'edit') {
-            const providerData = {
-                name: providerFormData.name,
-                api_base: providerFormData.apiBase,
-                api_style: providerFormData.apiStyle,
-                token: providerFormData.token || undefined,
-                no_key_required: (providerFormData as any).noKeyRequired || false,
-                enabled: providerFormData.enabled,
-                proxy_url: (providerFormData as any).proxyUrl ?? '',
-            };
-
+            const providerData = buildEditProviderPayload();
             const result = await api.updateProvider(providerFormData.uuid!, providerData);
             if (result.success) {
                 showNotification('Provider updated successfully!', 'success');
@@ -227,42 +297,13 @@ const CredentialPage = () => {
                 showNotification(`Failed to update provider: ${result.error}`, 'error');
             }
         } else {
-            // Force add with multi-protocol support
-            const protocols = (providerFormData as any).protocols as ('openai' | 'anthropic')[] || [providerFormData.apiStyle].filter(Boolean);
-            const providerBaseUrls = (providerFormData as any).providerBaseUrls as { openai?: string; anthropic?: string } | undefined;
-
-            let allSuccess = true;
-            let lastError = '';
-
-            for (const protocol of protocols) {
-                const apiBase = providerBaseUrls?.[protocol] || providerFormData.apiBase;
-                const providerData = {
-                    name: protocols.length > 1
-                        ? `${providerFormData.name} (${protocol === 'openai' ? 'OpenAI' : 'Anthropic'})`
-                        : providerFormData.name,
-                    api_base: apiBase,
-                    api_style: protocol,
-                    token: providerFormData.token,
-                    no_key_required: (providerFormData as any).noKeyRequired || false,
-                    enabled: true,
-                    proxy_url: (providerFormData as any).proxyUrl ?? '',
-                    auth_type: 'api_key',
-                };
-
-                const result = await api.addProvider(providerData, true);
-                if (!result.success) {
-                    allSuccess = false;
-                    lastError = result.error;
-                }
-            }
-
-            if (allSuccess) {
-                const count = protocols.length;
-                showNotification(`${count > 1 ? `${count} providers` : 'Provider'} added successfully!`, 'success');
+            const result = await submitProviderPayloads(buildAddProviderPayload(), { force: true });
+            if (result.success) {
+                showNotification('Provider added successfully!', 'success');
                 setApiKeyDialogOpen(false);
                 loadProviders();
             } else {
-                showNotification(`Failed to add provider: ${lastError}`, 'error');
+                showNotification(`Failed to add provider: ${result.error}`, 'error');
             }
         }
     };
@@ -306,10 +347,13 @@ const CredentialPage = () => {
                     name: provider.name,
                     apiBase: provider.api_base,
                     apiStyle: provider.api_style || 'openai',
+                    apiBaseOpenAI: provider.api_base_openai || '',
+                    apiBaseAnthropic: provider.api_base_anthropic || '',
                     token: provider.token || "",
                     enabled: provider.enabled,
                     noKeyRequired: provider.no_key_required || false,
                     proxyUrl: provider.proxy_url || '',
+                    authType: provider.auth_type || 'api_key',
                 } as any);
                 setApiKeyDialogOpen(true);
             }
