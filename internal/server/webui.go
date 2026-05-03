@@ -17,8 +17,12 @@ import (
 	assets "github.com/tingly-dev/tingly-box/internal"
 	"github.com/tingly-dev/tingly-box/internal/client"
 	"github.com/tingly-dev/tingly-box/internal/constant"
-	"github.com/tingly-dev/tingly-box/internal/hookbridge"
 	"github.com/tingly-dev/tingly-box/internal/obs"
+	"github.com/tingly-dev/tingly-box/internal/remote/binding"
+	"github.com/tingly-dev/tingly-box/internal/remote/channel"
+	"github.com/tingly-dev/tingly-box/internal/remote/interaction"
+	remotescenario "github.com/tingly-dev/tingly-box/internal/remote/scenario"
+	"github.com/tingly-dev/tingly-box/internal/remote/scenario/builtin/claudecode"
 	"github.com/tingly-dev/tingly-box/internal/protocol"
 	"github.com/tingly-dev/tingly-box/internal/server/config"
 	"github.com/tingly-dev/tingly-box/internal/server/module/codeximport"
@@ -81,17 +85,24 @@ func (s *Server) UseUIEndpoints(ctx context.Context) {
 	statusHandler := statusline.NewHandler(s.config, s.loadBalancer, statusline.NewCache(), quotaMgr)
 	statusline.RegisterRoutes(s.engine, statusHandler)
 
-	// Claude Code notification hook endpoint (no auth required).
-	// If the bot settings store is reachable, build a binding-aware
-	// handler so PreToolUse / AskUserQuestion / permission events get
-	// routed to a configured IM bot via the hook bridge. Bot start-up
-	// (later in this function) will register prompters into this same
-	// bridge.
+	// Remote middle-layer wiring for /tingly/:scenario hook events.
+	// When the bot settings store is reachable we set up:
+	//   - channelRegistry: running bots register imbot-backed Channels
+	//     (see internal/remote/channel/imchannel)
+	//   - interactionRegistry: shared long-poll registry the wait
+	//     endpoint reads from
+	//   - scenarioRegistry: name → plugin (Phase 1 ships claudecode)
+	// Everything stays nil for setups without imbot settings; in that
+	// case the notify HTTP module falls back to desktop notifications.
 	var notifyHandler *notifymodule.Handler
 	if sm := s.config.StoreManager(); sm != nil && sm.ImBotSettings() != nil {
-		s.hookBridge = hookbridge.New(30 * time.Second)
-		resolver := notifymodule.NewBindingResolver(sm.ImBotSettings())
-		notifyHandler = notifymodule.NewHandlerWithBridge(resolver, s.hookBridge)
+		s.channelRegistry = channel.NewRegistry()
+		s.interactionRegistry = interaction.New[interaction.Result](30 * time.Second)
+		s.scenarioRegistry = remotescenario.NewRegistry()
+		s.scenarioRegistry.Register(claudecode.New(s.interactionRegistry))
+		resolver := binding.NewResolver(sm.ImBotSettings())
+		runtime := remotescenario.NewDefaultRuntime(s.channelRegistry, resolver, nil)
+		notifyHandler = notifymodule.NewHandlerWithRouting(s.scenarioRegistry, s.interactionRegistry, runtime)
 	} else {
 		notifyHandler = notifymodule.NewHandler()
 	}
@@ -126,12 +137,12 @@ func (s *Server) UseUIEndpoints(ctx context.Context) {
 		imbot.RegisterRoutes(apiV1, imbotHandler)
 		// Store handler reference for shutdown
 		s.imbotSettingsHandler = imbotHandler
-		// Wire the hook bridge so each running bot's IM prompter is
-		// reachable from /tingly/:scenario/notify for Claude Code hook
-		// approval / question flows.
-		if s.hookBridge != nil {
+		// Wire the channel registry so each running bot exposes itself
+		// as a remote.channel.Channel reachable from /tingly/:scenario
+		// scenario plugins.
+		if s.channelRegistry != nil {
 			if bm := imbotHandler.BotManager(); bm != nil {
-				bm.SetHookBridge(s.hookBridge)
+				bm.SetChannelRegistry(s.channelRegistry)
 			}
 		}
 	}

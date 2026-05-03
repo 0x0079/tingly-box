@@ -24,7 +24,6 @@ import (
 	"github.com/tingly-dev/tingly-box/internal/data/db"
 	"github.com/tingly-dev/tingly-box/internal/guardrails"
 	guardrailscore "github.com/tingly-dev/tingly-box/internal/guardrails/core"
-	"github.com/tingly-dev/tingly-box/internal/hookbridge"
 	guardrailsevaluate "github.com/tingly-dev/tingly-box/internal/guardrails/evaluate"
 	guardrailsutils "github.com/tingly-dev/tingly-box/internal/guardrails/utils"
 	"github.com/tingly-dev/tingly-box/internal/loadbalance"
@@ -32,6 +31,9 @@ import (
 	"github.com/tingly-dev/tingly-box/internal/obs"
 	"github.com/tingly-dev/tingly-box/internal/server/background"
 	"github.com/tingly-dev/tingly-box/internal/server/config"
+	"github.com/tingly-dev/tingly-box/internal/remote/channel"
+	"github.com/tingly-dev/tingly-box/internal/remote/interaction"
+	"github.com/tingly-dev/tingly-box/internal/remote/scenario"
 	"github.com/tingly-dev/tingly-box/internal/server/hooks"
 	"github.com/tingly-dev/tingly-box/internal/server/middleware"
 	"github.com/tingly-dev/tingly-box/internal/server/module/codeximport"
@@ -78,10 +80,15 @@ type Server struct {
 	// ImBot settings handler (module)
 	imbotSettingsHandler interface{}
 
-	// hookBridge wires Claude Code hook HTTP events to running IM bots.
-	// Lazily constructed in UseUIEndpoints when an imbot settings store
-	// is reachable; nil otherwise (notify falls back to desktop only).
-	hookBridge *hookbridge.Bridge
+	// remote middle-layer state. The channel registry holds running
+	// imbot Channel adapters; the interaction registry stores pending
+	// long-poll results; the scenario registry routes /tingly/:scenario
+	// events to plugins (claudecode is the first one). All three are
+	// lazily constructed in UseUIEndpoints; the notify HTTP module
+	// falls back to desktop notifications when they're absent.
+	channelRegistry     *channel.Registry
+	interactionRegistry *interaction.Registry[interaction.Result]
+	scenarioRegistry    *scenario.Registry
 
 	// OAuth refresher for OAuth auto-refresh
 	oauthRefresher *background.OAuthRefresher

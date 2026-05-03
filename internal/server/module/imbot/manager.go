@@ -12,7 +12,7 @@ import (
 	"github.com/tingly-dev/tingly-box/agentboot"
 	"github.com/tingly-dev/tingly-box/agentboot/claude"
 	"github.com/tingly-dev/tingly-box/internal/data/db"
-	"github.com/tingly-dev/tingly-box/internal/hookbridge"
+	"github.com/tingly-dev/tingly-box/internal/remote/channel"
 	"github.com/tingly-dev/tingly-box/internal/remote_control/bot"
 	"github.com/tingly-dev/tingly-box/internal/remote_control/session"
 	"github.com/tingly-dev/tingly-box/internal/server/config"
@@ -43,9 +43,10 @@ type BotStatus struct {
 }
 
 // NewBotManager creates a new BotManager with all required dependencies.
-// If a hook bridge is supplied via SetHookBridge before bots are started,
-// each running bot will register its IM prompter so Claude Code hooks
-// routed to /tingly/:scenario/notify can drive that bot's chat.
+// If a channel registry is supplied via SetChannelRegistry before bots
+// are started, each running bot exposes itself as a remote.channel.Channel
+// so Claude Code hooks routed to /tingly/:scenario/notify can drive
+// that bot's chat through the scenario plugin layer.
 func NewBotManager(ctx context.Context, cfg *config.Config) (*BotManager, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config is nil")
@@ -359,13 +360,14 @@ func (bm *BotManager) GetStore() *db.ImBotSettingsStore {
 	return bm.store
 }
 
-// SetHookBridge passes the hook bridge through to the underlying
-// internal bot manager so IM prompters get registered as bots start.
-func (bm *BotManager) SetHookBridge(bridge *hookbridge.Bridge) {
+// SetChannelRegistry passes the remote channel registry through to the
+// underlying bot manager so each running bot registers an imbot-backed
+// Channel reachable from the notify scenario plugins.
+func (bm *BotManager) SetChannelRegistry(reg *channel.Registry) {
 	if bm == nil || bm.manager == nil {
 		return
 	}
-	bm.manager.SetHookBridge(bridge)
+	bm.manager.SetChannelRegistry(reg)
 }
 
 // GetTBClient returns the TBClient for SmartGuide model configuration.
