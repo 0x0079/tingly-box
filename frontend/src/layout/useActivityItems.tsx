@@ -20,6 +20,7 @@ import {
     IconLock,
     IconMessageCircle,
     IconVector,
+    IconFlask,
 } from '@tabler/icons-react';
 import { OpenAI, Anthropic, Claude, OpenCode, Xcode, VSCode, Telegram, Feishu, Lark, DingTalk, Weixin, WeCom, Codex, OpenClaw } from '../components/BrandIcons';
 import { SettingsApplications } from '@mui/icons-material';
@@ -156,7 +157,12 @@ export function useActivityItems(): ActivityItem[] {
                 defaultPath: '/credentials',
                 children: [
                     { path: '/credentials', label: t('layout.modelKey'), icon: <IconLock size={20} /> },
-                    { path: '/tingly-box-token', label: t('layout.tinglyBox'), icon: <IconKey size={20} /> },
+                    {
+                        path: '/tingly-box-token',
+                        label: t('layout.tinglyBox'),
+                        icon: <IconKey size={20} />,
+                        tooltip: t('layout.tinglyBoxTooltip'),
+                    },
                 ],
             },
             {
@@ -166,7 +172,8 @@ export function useActivityItems(): ActivityItem[] {
                 defaultPath: '/system',
                 children: [
                     { path: '/access-control', label: t('layout.accessControl'), icon: <IconShield size={20} /> },
-                    { path: '/system', label: t('layout.status'), icon: <IconSettings size={20} /> },
+                    { path: '/system', label: t('layout.system'), icon: <IconSettings size={20} /> },
+                    { path: '/system/experimental', label: t('layout.experimental'), icon: <IconFlask size={20} /> },
                     { path: '/system/logs', label: t('layout.logs'), icon: <IconFileText size={20} /> },
                 ],
             },

@@ -1,7 +1,7 @@
 import CardGrid from "@/components/CardGrid.tsx";
 import UnifiedCard from "@/components/UnifiedCard.tsx";
 import ProviderConfigCard from "@/components/ProviderConfigCard.tsx";
-import AgentSetupCard, { type AgentApplyResult } from '@/components/AgentSetupCard';
+import AgentSetupCard, { type AgentApplyResult, hasModelOnAnyRule, scrollToModelsCard } from '@/components/AgentSetupCard';
 import OpenCodeConfigModal from '@/components/OpenCodeConfigModal';
 import { Box, Button, IconButton, Tooltip } from '@mui/material';
 import InfoIcon from '@mui/icons-material/Info';
@@ -21,6 +21,7 @@ const UseOpenCodePageContent: React.FC = () => {
         showNotification,
         copyToClipboard,
         baseUrl,
+        rules,
     } = useScenarioPageInternal(scenario);
 
     const [isApplyLoading, setIsApplyLoading] = useState(false);
@@ -125,6 +126,8 @@ const UseOpenCodePageContent: React.FC = () => {
                     onApply={handleApply}
                     isApplyLoading={isApplyLoading}
                     onViewConfig={handleOpenConfigModal}
+                    hasModelSelected={hasModelOnAnyRule(rules)}
+                    onSelectModel={scrollToModelsCard}
                 />
 
                 <TemplatePage

@@ -1,5 +1,4 @@
 import CardGrid from '@/components/CardGrid';
-import GlobalExperimentalFeatures from '@/components/GlobalExperimentalFeatures';
 import { PageLayout } from '@/components/PageLayout';
 import UnifiedCard from '@/components/UnifiedCard';
 import { Logout } from '@mui/icons-material';
@@ -267,6 +266,50 @@ const System = () => {
                                     </Button>
                                 </Box>
                             </Box>
+
+                            {/* Language — merged from the standalone Language Settings card */}
+                            <Box sx={{ display: 'flex', alignItems: 'center', py: 0.5, gap: 3 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 100 }}>
+                                    <IconLanguage size={14} style={{ color: 'var(--mui-palette-text-secondary)' }} />
+                                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                                        {t('system.language.title')}
+                                    </Typography>
+                                </Box>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
+                                    <Chip
+                                        label={t('system.language.en')}
+                                        onClick={() => changeLanguage('en')}
+                                        size="small"
+                                        sx={{
+                                            bgcolor: i18n.language === 'en' ? 'primary.main' : 'action.hover',
+                                            color: i18n.language === 'en' ? 'primary.contrastText' : 'text.primary',
+                                            fontWeight: i18n.language === 'en' ? 600 : 400,
+                                            border: i18n.language === 'en' ? 'none' : '1px solid',
+                                            borderColor: 'divider',
+                                            cursor: 'pointer',
+                                            '&:hover': {
+                                                bgcolor: i18n.language === 'en' ? 'primary.dark' : 'action.selected',
+                                            },
+                                        }}
+                                    />
+                                    <Chip
+                                        label={t('system.language.zh')}
+                                        onClick={() => changeLanguage('zh')}
+                                        size="small"
+                                        sx={{
+                                            bgcolor: i18n.language === 'zh' ? 'primary.main' : 'action.hover',
+                                            color: i18n.language === 'zh' ? 'primary.contrastText' : 'text.primary',
+                                            fontWeight: i18n.language === 'zh' ? 600 : 400,
+                                            border: i18n.language === 'zh' ? 'none' : '1px solid',
+                                            borderColor: 'divider',
+                                            cursor: 'pointer',
+                                            '&:hover': {
+                                                bgcolor: i18n.language === 'zh' ? 'primary.dark' : 'action.selected',
+                                            },
+                                        }}
+                                    />
+                                </Box>
+                            </Box>
                         </Stack>
                     ) : (
                         <Typography color="text.secondary">{t('system.status.loading')}</Typography>
@@ -361,73 +404,6 @@ const System = () => {
                                 </Link>
                             </Box>
                         </Box>
-                    </Stack>
-                </UnifiedCard>
-
-                {/* Language Settings */}
-                <UnifiedCard
-                    title={t('system.language.title')}
-                    size="full"
-                >
-                    <Stack spacing={1.5}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', py: 0.5, gap: 3 }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 100 }}>
-                                <IconLanguage size={16} style={{ color: 'var(--mui-palette-text-secondary)' }} />
-                                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                                    {t('system.language.description')}
-                                </Typography>
-                            </Box>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
-                                <Chip
-                                    label={t('system.language.en')}
-                                    onClick={() => changeLanguage('en')}
-                                    size="small"
-                                    sx={(theme) => ({
-                                        bgcolor: i18n.language === 'en' ? 'primary.main' : 'action.hover',
-                                        color: i18n.language === 'en' ? 'primary.contrastText' : 'text.primary',
-                                        fontWeight: i18n.language === 'en' ? 600 : 400,
-                                        border: i18n.language === 'en' ? 'none' : '1px solid',
-                                        borderColor: 'divider',
-                                        cursor: 'pointer',
-                                        '&:hover': {
-                                            bgcolor: i18n.language === 'en' ? 'primary.dark' : 'action.selected',
-                                        },
-                                    })}
-                                />
-                                <Chip
-                                    label={t('system.language.zh')}
-                                    onClick={() => changeLanguage('zh')}
-                                    size="small"
-                                    sx={(theme) => ({
-                                        bgcolor: i18n.language === 'zh' ? 'primary.main' : 'action.hover',
-                                        color: i18n.language === 'zh' ? 'primary.contrastText' : 'text.primary',
-                                        fontWeight: i18n.language === 'zh' ? 600 : 400,
-                                        border: i18n.language === 'zh' ? 'none' : '1px solid',
-                                        borderColor: 'divider',
-                                        cursor: 'pointer',
-                                        '&:hover': {
-                                            bgcolor: i18n.language === 'zh' ? 'primary.dark' : 'action.selected',
-                                        },
-                                    })}
-                                />
-                                <Typography variant="caption" sx={{ color: 'text.secondary', ml: 1 }}>
-                                    {t('system.language.current')}: {i18n.language === 'en' ? 'English' : '中文'}
-                                </Typography>
-                            </Box>
-                        </Box>
-                    </Stack>
-                </UnifiedCard>
-
-                {/* Global Experimental Features */}
-                <UnifiedCard
-                    title={t('system.experimentalFeatures.title')}
-                    size="full"
-                >
-                    <Stack spacing={1}>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                            {t('system.experimentalFeatures.description')}
-                        </Typography>
-                        <GlobalExperimentalFeatures />
                     </Stack>
                 </UnifiedCard>
 

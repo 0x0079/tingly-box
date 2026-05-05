@@ -1,4 +1,4 @@
-import { IconPlus } from '@tabler/icons-react';
+import { IconInfoCircle, IconPlus } from '@tabler/icons-react';
 import {
     Box,
     Button,
@@ -186,6 +186,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ sidebarItems, activeActivityLa
                                         },
                                     }}
                                 />
+                                {item.tooltip && (
+                                    <IconInfoCircle
+                                        size={13}
+                                        style={{
+                                            flexShrink: 0,
+                                            marginLeft: 4,
+                                            opacity: active ? 0.6 : 0.35,
+                                        }}
+                                    />
+                                )}
                             </ListItemButton>
                         </ListItem>
                     );
@@ -194,6 +204,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ sidebarItems, activeActivityLa
                         <React.Fragment key={item.path}>
                             {isAddProfile ? (
                                 <Tooltip title={t('layout.sidebar.createProfileTooltip')} arrow placement="right">
+                                    {button}
+                                </Tooltip>
+                            ) : item.tooltip ? (
+                                <Tooltip
+                                    title={item.tooltip}
+                                    arrow
+                                    placement="right"
+                                    enterDelay={600}
+                                    enterNextDelay={600}
+                                    slotProps={{ tooltip: { sx: { maxWidth: 320 } } }}
+                                >
                                     {button}
                                 </Tooltip>
                             ) : button}

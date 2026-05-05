@@ -1,5 +1,5 @@
 import CardGrid from "@/components/CardGrid.tsx";
-import AgentSetupCard, { type AgentApplyResult } from '@/components/AgentSetupCard';
+import AgentSetupCard, { type AgentApplyResult, hasModelOnAnyRule, scrollToModelsCard } from '@/components/AgentSetupCard';
 import ClaudeCodeConfigModal from '@/components/ClaudeCodeConfigModal';
 import PageLayout from '@/components/PageLayout';
 import ProviderConfigCard from "@/components/ProviderConfigCard.tsx";
@@ -252,6 +252,8 @@ const UseClaudeCodePageContent: React.FC = () => {
                     onApplyWithStatusLine={handleApplyWithStatusLine}
                     isApplyLoading={isApplyLoading}
                     onViewConfig={() => setConfigModalOpen(true)}
+                    hasModelSelected={hasModelOnAnyRule(rules)}
+                    onSelectModel={scrollToModelsCard}
                 />
 
                 <TemplatePage

@@ -37,6 +37,7 @@ import ProviderListPage from './pages/ProviderListPage';
 import System from './pages/System';
 import AccessControl from './pages/AccessControl';
 import LogsPage from './pages/system/LogsPage';
+import ExperimentalPage from './pages/system/ExperimentalPage';
 import GuardrailsPage from './pages/GuardrailsPage';
 import GuardrailsRulesPage from './pages/guardrails/RulesPage';
 import GuardrailsCredentialsPage from './pages/guardrails/CredentialsPage';
@@ -274,9 +275,10 @@ const AppDialogs = () => {
 
 // OnboardingGate decides where a freshly-authenticated user lands. Brand-new
 // installs (no provider configured) get sent to /onboarding; everyone else
-// returns to the last visited activity, with the existing /agent/claude_code
-// fallback. We hit /api/v2/providers once on mount; while in flight we render
-// nothing to avoid a flash of the default agent page.
+// always lands in the scenario activity, restoring the previously selected
+// agent sub-page if one was remembered, or /agent/claude_code by default.
+// We hit /api/v2/providers once on mount; while in flight we render nothing
+// to avoid a flash of the default agent page.
 const OnboardingGate: React.FC = () => {
     const [target, setTarget] = useState<string | null>(null);
 
@@ -287,19 +289,16 @@ const OnboardingGate: React.FC = () => {
                 const result = await api.getProviders();
                 if (cancelled) return;
                 const providers = Array.isArray(result?.data) ? result.data : [];
-                // No providers? Force onboarding, regardless of previous activity
                 if (providers.length === 0) {
                     setTarget('/onboarding');
-                    // Clear the previous activity path to avoid redirect loops
                     localStorage.removeItem('layout.activeActivity');
                     return;
                 }
             } catch {
-                // Swallow the error and fall through to the default activity —
+                // Swallow the error and fall through to the default agent —
                 // failing the gate should never lock the user out of the app.
             }
-            const activeActivity = localStorage.getItem('layout.activeActivity') || 'scenario';
-            const fallback = localStorage.getItem(`layout.activityPath.${activeActivity}`) || '/agent/claude_code';
+            const fallback = localStorage.getItem('layout.activityPath.scenario') || '/agent/claude_code';
             if (!cancelled) setTarget(fallback);
         })();
         return () => { cancelled = true; };
@@ -374,6 +373,7 @@ function AppContent() {
                     <Route path="/access-control" element={<AccessControl />} />
                     <Route path="/tingly-box-token" element={<APITokensPage />} />
                     <Route path="/system/logs" element={<LogsPage />} />
+                    <Route path="/system/experimental" element={<ExperimentalPage />} />
                     {/* Legacy redirects for backward compatibility */}
                     <Route path="/system/http-logs" element={<Navigate to="/system/logs" replace />} />
                     <Route path="/system/system-logs" element={<Navigate to="/system/logs" replace />} />

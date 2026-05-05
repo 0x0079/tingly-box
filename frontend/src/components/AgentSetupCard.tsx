@@ -15,11 +15,10 @@ import {
     Tooltip,
     Typography,
 } from '@mui/material';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import UnifiedCard from '@/components/UnifiedCard';
 import { api } from '@/services/api';
-import { copyableTextStyle } from '@/styles/textStyles';
 
 export interface AgentApplyResult {
     success: boolean;
@@ -36,11 +35,29 @@ export interface AgentSetupCardProps {
     onApplyWithStatusLine?: () => Promise<AgentApplyResult>;
     isApplyLoading?: boolean;
     onViewConfig?: () => void;
+    /** Whether at least one rule has a service with both a provider and model set. */
+    hasModelSelected?: boolean;
+    /** Triggered when the user clicks the Step 4 CTA — usually scrolls the page to the rules card. */
+    onSelectModel?: () => void;
 }
 
 const COLLAPSED_KEY = (agentKey: string) => `setup-card-collapsed-${agentKey}`;
 const STEP2_KEY = (agentKey: string) => `setup-card-step2-done-${agentKey}`;
 const STEP3_KEY = (agentKey: string) => `setup-card-step3-done-${agentKey}`;
+const TOTAL_STEPS = 4;
+
+/** True iff at least one rule has a service with both a non-empty provider and model. */
+export const hasModelOnAnyRule = (rules: any[] | null | undefined): boolean =>
+    Array.isArray(rules) &&
+    rules.some(r => Array.isArray(r?.services) && r.services.some((s: any) => s?.provider && s?.model));
+
+/** Smoothly scroll the "Models and Forwarding Rules" card into view. */
+export const scrollToModelsCard = () => {
+    document.getElementById('models-and-forwarding-rules')?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+    });
+};
 
 const StepIcon: React.FC<{ done: boolean; active: boolean }> = ({ done, active }) => {
     if (done) return <CheckCircleIcon sx={{ color: 'success.main', fontSize: 20 }} />;
@@ -57,10 +74,13 @@ const AgentSetupCard: React.FC<AgentSetupCardProps> = ({
     onApplyWithStatusLine,
     isApplyLoading = false,
     onViewConfig,
+    hasModelSelected = false,
+    onSelectModel,
 }) => {
-    const [collapsed, setCollapsed] = useState(
-        () => localStorage.getItem(COLLAPSED_KEY(agentKey)) === 'true'
-    );
+    // We read the stored collapsed preference once on mount so the auto-collapse
+    // effect below can distinguish "user has not chosen" from "user chose expanded".
+    const initialCollapsedPref = useRef<string | null>(localStorage.getItem(COLLAPSED_KEY(agentKey)));
+    const [collapsed, setCollapsed] = useState(initialCollapsedPref.current === 'true');
     const [step2Done, setStep2Done] = useState(
         () => localStorage.getItem(STEP2_KEY(agentKey)) === 'true'
     );
@@ -90,8 +110,24 @@ const AgentSetupCard: React.FC<AgentSetupCardProps> = ({
     }, []);
 
     const step1Done = hasProvider;
-    const allDone = step1Done && step2Done && step3Done;
-    const doneCount = [step1Done, step2Done, step3Done].filter(Boolean).length;
+    const step4Done = hasModelSelected;
+    const allDone = step1Done && step2Done && step3Done && step4Done;
+    const doneCount = [step1Done, step2Done, step3Done, step4Done].filter(Boolean).length;
+
+    // Auto-collapse on first visit when every step is already complete, but only
+    // when the user hasn't expressed a preference. We wait for providerLoading
+    // so step1Done has settled before we decide.
+    const autoCollapsedRef = useRef(false);
+    useEffect(() => {
+        if (autoCollapsedRef.current) return;
+        if (providerLoading) return;
+        if (initialCollapsedPref.current !== null) return;
+        if (allDone) {
+            autoCollapsedRef.current = true;
+            setCollapsed(true);
+            localStorage.setItem(COLLAPSED_KEY(agentKey), 'true');
+        }
+    }, [providerLoading, allDone, agentKey]);
 
     const toggleCollapsed = () => {
         const next = !collapsed;
@@ -139,8 +175,16 @@ const AgentSetupCard: React.FC<AgentSetupCardProps> = ({
         }
     };
 
-    const progressLabel = allDone ? 'Done' : `${doneCount}/3`;
+    const progressLabel = allDone ? 'Done' : `${doneCount}/${TOTAL_STEPS}`;
     const progressColor = allDone ? 'success' : 'default';
+
+    const collapsedHint = !step1Done
+        ? 'Add a provider to get started'
+        : !step2Done
+            ? `Install ${agentName}`
+            : !step3Done
+                ? 'Apply config'
+                : 'Pick a model to finish';
 
     return (
         <UnifiedCard
@@ -158,9 +202,7 @@ const AgentSetupCard: React.FC<AgentSetupCardProps> = ({
                     />
                     {collapsed && !allDone && (
                         <Typography variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>
-                            {!step1Done ? 'Add a provider to get started' :
-                             !step2Done ? `Install ${agentName}` :
-                             'Apply config to finish'}
+                            {collapsedHint}
                         </Typography>
                     )}
                 </Stack>
@@ -376,6 +418,42 @@ const AgentSetupCard: React.FC<AgentSetupCardProps> = ({
                                         <Typography variant="caption">{applyResult.error ?? 'Apply failed'}</Typography>
                                     )}
                                 </Alert>
+                            )}
+                        </Box>
+                    </Stack>
+
+                    {/* Step 4: Select a Model */}
+                    <Stack direction="row" spacing={1.5} alignItems="flex-start">
+                        <StepIcon done={step4Done} active={step3Done && !step4Done} />
+                        <Box sx={{ flex: 1 }}>
+                            <Typography
+                                variant="body2"
+                                fontWeight={500}
+                                color={!step3Done ? 'text.disabled' : step4Done ? 'text.primary' : 'primary.main'}
+                            >
+                                Step 4 — Select a Model
+                            </Typography>
+                            {step4Done ? (
+                                <Typography variant="caption" color="text.secondary">
+                                    Model selected — you're ready to go.
+                                </Typography>
+                            ) : (
+                                <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }} flexWrap="wrap" gap={1}>
+                                    <Typography variant="caption" color="text.secondary">
+                                        Pick a model in <em>Models and Forwarding Rules</em> to start routing requests.
+                                    </Typography>
+                                    {onSelectModel && (
+                                        <Button
+                                            size="small"
+                                            variant="outlined"
+                                            disabled={!step3Done}
+                                            onClick={onSelectModel}
+                                            sx={{ flexShrink: 0, py: 0, fontSize: '0.7rem' }}
+                                        >
+                                            Choose Model
+                                        </Button>
+                                    )}
+                                </Stack>
                             )}
                         </Box>
                     </Stack>

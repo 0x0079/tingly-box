@@ -317,7 +317,13 @@ const TemplatePage: React.FC<TabTemplatePageProps> = (props) => {
 
     return (
         <>
-            <UnifiedCard size="full" title={title} rightAction={rightAction}>
+            <UnifiedCard
+                id="models-and-forwarding-rules"
+                size="full"
+                title={title}
+                rightAction={rightAction}
+                sx={{ scrollMarginTop: 16 }}
+            >
                 {/*<Box ref={scrollContainerRef} sx={SCROLLBOX_SX(headerHeight)}>*/}
                 <Box ref={scrollContainerRef}>
                     {rules?.length === 0 ? (

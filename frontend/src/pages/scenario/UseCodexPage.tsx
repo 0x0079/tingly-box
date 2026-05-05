@@ -1,5 +1,5 @@
 import CardGrid from "@/components/CardGrid.tsx";
-import AgentSetupCard, { type AgentApplyResult } from '@/components/AgentSetupCard';
+import AgentSetupCard, { type AgentApplyResult, hasModelOnAnyRule, scrollToModelsCard } from '@/components/AgentSetupCard';
 import CodexConfigModal from "@/components/CodexConfigModal.tsx";
 import UnifiedCard from "@/components/UnifiedCard.tsx";
 import ProviderConfigCard from "@/components/ProviderConfigCard.tsx";
@@ -19,6 +19,7 @@ const UseCodexPageContent: React.FC = () => {
         notification,
         copyToClipboard,
         baseUrl,
+        rules,
     } = useScenarioPageInternal(scenario);
 
     const [configModalOpen, setConfigModalOpen] = useState(false);
@@ -76,6 +77,8 @@ const UseCodexPageContent: React.FC = () => {
                     installMirrorCommand="npm install -g @openai/codex --registry=https://registry.npmmirror.com"
                     onApply={handleApply}
                     onViewConfig={() => setConfigModalOpen(true)}
+                    hasModelSelected={hasModelOnAnyRule(rules)}
+                    onSelectModel={scrollToModelsCard}
                 />
 
                 <TemplatePage
