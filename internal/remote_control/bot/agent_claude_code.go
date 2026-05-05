@@ -61,7 +61,6 @@ func (e *ClaudeCodeExecutor) Execute(ctx context.Context, req PreparedRequest) (
 		Content:   req.Text,
 		Timestamp: time.Now(),
 	})
-	e.deps.SessionMgr.SetRunning(sessionID)
 
 	statusMsg := "⏳ CC: Processing new session..."
 	if !req.IsNewSession {
@@ -108,17 +107,17 @@ func (e *ClaudeCodeExecutor) Execute(ctx context.Context, req PreparedRequest) (
 		BotUUID:              req.HCtx.BotUUID,
 		PermissionPromptTool: "stdio",
 		PermissionMode:       permissionMode,
+		Store:                e.deps.SessionMgr,
 	})
 	if err != nil {
 		duration := time.Since(startTime)
-		errMsg := err.Error()
-		e.deps.SessionMgr.SetFailed(sessionID, errMsg)
+		// Runner already called Store.SetFailed; send the user-facing message.
 		e.deps.SendTextWithReply(req.HCtx, fmt.Sprintf("Execution failed: %v", err), req.ReplyTo)
 		return &ExecutionResult{
 			SessionID:    sessionID,
 			Success:      false,
 			Error:        err,
-			Response:     errMsg,
+			Response:     err.Error(),
 			Meta:         meta,
 			IsNewSession: req.IsNewSession,
 			Duration:     duration,
@@ -214,7 +213,7 @@ func (e *ClaudeCodeExecutor) Execute(ctx context.Context, req PreparedRequest) (
 		if strings.Contains(errMsg, "Session ID") && strings.Contains(errMsg, "already in use") {
 			response = fmt.Sprintf("⚠️ Session ID conflict: This session is already active in another Claude Code process.\n\nSession ID: %s\n\nPossible solutions:\n• Wait for the other session to complete\n• Use /stop to end the current session and try again\n• If the other process is stuck, terminate it manually", sessionID)
 		}
-		e.deps.SessionMgr.SetFailed(sessionID, response)
+		// Runner already called Store.SetFailed inside Wait(); send the user-facing message.
 		e.deps.SendTextWithReply(req.HCtx, response, req.ReplyTo)
 		return &ExecutionResult{
 			SessionID:    sessionID,
@@ -227,9 +226,7 @@ func (e *ClaudeCodeExecutor) Execute(ctx context.Context, req PreparedRequest) (
 		}, werr
 	}
 
-	// Success: send the "Task done" action keyboard inline (formerly
-	// CompletionCallback.OnComplete) and mark the session completed.
-	e.deps.SessionMgr.SetCompleted(sessionID, "")
+	// Success: runner called Store.SetCompleted inside Wait(); send the "Task done" card.
 	e.sendTaskDoneCard(req.HCtx, meta)
 
 	return &ExecutionResult{

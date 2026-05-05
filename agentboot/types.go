@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/tingly-dev/tingly-box/agentboot/common"
+	agentsession "github.com/tingly-dev/tingly-box/agentboot/session"
 )
 
 // AgentType defines the supported agent types
@@ -170,6 +171,13 @@ type ExecutionOptions struct {
 	// PermissionPromptTool specifies the tool for permission prompts (e.g., "stdio")
 	// When set to "stdio", permission requests are sent via stdin/stdout for callback handling
 	PermissionPromptTool string
+
+	// Store, if set, receives session lifecycle events driven by the runner.
+	// When non-nil and SessionID is non-empty the runner calls:
+	//   SetRunning  — after the process starts successfully
+	//   SetFailed   — if the process fails to start or Wait returns an error
+	//   SetCompleted — if Wait returns without error
+	Store agentsession.Store
 }
 
 // Result represents the result of an agent execution

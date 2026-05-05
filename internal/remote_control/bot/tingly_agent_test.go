@@ -71,10 +71,10 @@ func waitTextContaining(t *testing.T, chat *testenv.Chat, substr string, maxScan
 	return nil
 }
 
-// lastClaudeSession finds the most recent claude session for chatID and
-// polls up to 3s for it to reach a terminal state. Reads via GetStatus
-// (which holds the manager lock) so there is no data race with the
-// executor goroutine that writes session.Status concurrently.
+// lastClaudeSession returns the status of the most recent claude session for
+// chatID. The runner sets the terminal status inside Wait() before the bot
+// executor sends its final chat message, so by the time the test has seen
+// that message this read is guaranteed race-free.
 func lastClaudeSession(t *testing.T, harness *bot.TestHarness, chatID string) session.Status {
 	t.Helper()
 	all := harness.SessionMgr.ListByChat(chatID)
@@ -88,23 +88,12 @@ func lastClaudeSession(t *testing.T, harness *bot.TestHarness, chatID string) se
 		t.Fatalf("no claude session for chat %s; have %d sessions", chatID, len(all))
 		return ""
 	}
-
-	var last session.Status
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
-		if st, ok := harness.SessionMgr.GetStatus(sessID); ok {
-			switch st {
-			case session.StatusCompleted, session.StatusFailed,
-				session.StatusClosed, session.StatusExpired:
-				return st
-			default:
-				last = st
-			}
-		}
-		time.Sleep(10 * time.Millisecond)
+	st, ok := harness.SessionMgr.GetStatus(sessID)
+	if !ok {
+		t.Fatalf("session %s not found after terminal chat message", sessID)
+		return ""
 	}
-	t.Fatalf("session %s for chat %s never reached terminal state (last: %s)", sessID, chatID, last)
-	return ""
+	return st
 }
 
 // Test_AgentE2E_AssistantText drives the bot through a fixture script that
@@ -165,8 +154,13 @@ func Test_AgentE2E_PermissionDeny(t *testing.T) {
 	prompt := chat.WaitApprovalPrompt(3 * time.Second)
 	prompt.Deny()
 
+	// Wait for both the immediate denial ack AND the failure message that
+	// the executor sends after handle.Wait() returns. The runner calls
+	// store.SetFailed inside Wait(), before SendTextWithReply, so by the
+	// time the failure message arrives the session status is guaranteed set.
 	chat.ExpectInOrderLoose(3*time.Second,
 		testenv.Matcher{Kind: tingly.EventSend, TextContains: "Deny for tool", Name: "deny-ack"},
+		testenv.Matcher{Kind: tingly.EventSend, TextContains: "Execution failed", Name: "failure-msg"},
 	)
 
 	require.Equal(t, session.StatusFailed, lastClaudeSession(t, harness, chat.ChatID),

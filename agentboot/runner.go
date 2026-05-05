@@ -109,7 +109,13 @@ func (r *Runner) Execute(ctx context.Context, prompt string, opts ExecutionOptio
 	proc, err := r.procFactory.Start(runCtx, procSpec)
 	if err != nil {
 		cancel()
+		if opts.Store != nil && opts.SessionID != "" {
+			opts.Store.SetFailed(opts.SessionID, err.Error())
+		}
 		return nil, fmt.Errorf("start process: %w", err)
+	}
+	if opts.Store != nil && opts.SessionID != "" {
+		opts.Store.SetRunning(opts.SessionID)
 	}
 
 	decoder := protocol.NewDecoder(proc.Stdout())
@@ -260,28 +266,44 @@ func (r *Runner) Execute(ctx context.Context, prompt string, opts ExecutionOptio
 			feederWG.Wait()
 			cancel()
 
-			state.mu.Lock()
-			defer state.mu.Unlock()
+			// Compute result under state lock, then release before calling store
+			// (the store has its own lock; holding both would invert lock order).
+			var sessID string
+			var store = opts.Store
+			func() {
+				state.mu.Lock()
+				defer state.mu.Unlock()
 
-			waitResult = &Result{
-				Format:   opts.OutputFormat,
-				Events:   append([]common.Event(nil), state.events...),
-				Duration: time.Since(state.startTime),
-				Metadata: map[string]any{},
-			}
-			if state.opts.SessionID != "" {
-				waitResult.Metadata["session_id"] = state.opts.SessionID
-			}
-			if state.terminalSeen && !state.terminalSuccess {
-				waitResult.Error = "agent reported error result"
-				waitErr = errors.New(waitResult.Error)
-			}
-			if rctxErr := runCtx.Err(); rctxErr != nil && !state.terminalSeen {
-				if errors.Is(rctxErr, context.DeadlineExceeded) {
-					waitResult.Error = "agent execution timed out"
-					waitErr = context.DeadlineExceeded
-				} else if errors.Is(rctxErr, context.Canceled) && ctx.Err() != nil {
-					waitErr = ctx.Err()
+				waitResult = &Result{
+					Format:   opts.OutputFormat,
+					Events:   append([]common.Event(nil), state.events...),
+					Duration: time.Since(state.startTime),
+					Metadata: map[string]any{},
+				}
+				if state.opts.SessionID != "" {
+					waitResult.Metadata["session_id"] = state.opts.SessionID
+				}
+				if state.terminalSeen && !state.terminalSuccess {
+					waitResult.Error = "agent reported error result"
+					waitErr = errors.New(waitResult.Error)
+				}
+				if rctxErr := runCtx.Err(); rctxErr != nil && !state.terminalSeen {
+					if errors.Is(rctxErr, context.DeadlineExceeded) {
+						waitResult.Error = "agent execution timed out"
+						waitErr = context.DeadlineExceeded
+					} else if errors.Is(rctxErr, context.Canceled) && ctx.Err() != nil {
+						waitErr = ctx.Err()
+					}
+				}
+				sessID = state.opts.SessionID
+			}()
+
+			// Notify the session store outside the state lock.
+			if store != nil && sessID != "" {
+				if waitErr != nil {
+					store.SetFailed(sessID, waitErr.Error())
+				} else {
+					store.SetCompleted(sessID, "")
 				}
 			}
 		})
