@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/tingly-dev/tingly-box/internal/data"
 	"github.com/tingly-dev/tingly-box/internal/loadbalance"
@@ -36,12 +37,13 @@ type quickstartState struct {
 	provider    *typ.Provider
 	useExisting bool
 
-	providerName string
-	apiBase      string
-	apiToken     string
-	proxyURL     string
-	model        string
-	startServer  bool
+	selectedTemplate *data.ProviderTemplate // nil = custom provider
+	providerName     string
+	apiBase          string
+	apiToken         string
+	proxyURL         string
+	model            string
+	startServer      bool
 }
 
 // RunQuickstart runs the interactive Tingly Box quickstart wizard.
@@ -49,8 +51,8 @@ func RunQuickstart(mgr QuickstartManager) error {
 	steps := []Step[quickstartState]{
 		{Name: "Welcome", Execute: qsWelcome, Skip: qsHasProviders},
 		{Name: "Credential", Execute: qsCredential, Skip: qsHasNoProviders},
-		{Name: "API Style", Execute: qsAPIStyle, Skip: qsUsingExisting},
 		{Name: "Provider", Execute: qsProvider, Skip: qsUsingExisting},
+		{Name: "API Style", Execute: qsAPIStyle, Skip: qsUsingExisting},
 		{Name: "Details", Execute: qsDetails, Skip: qsUsingExisting},
 		{Name: "Model", Execute: qsModel},
 		{Name: "Rules", Execute: qsRules},
@@ -143,29 +145,6 @@ func qsCredential(ctx StepContext, s quickstartState) (quickstartState, StepResu
 	return s, StepContinue, nil
 }
 
-func qsAPIStyle(ctx StepContext, s quickstartState) (quickstartState, StepResult, error) {
-	items := []SelectItem[protocol.APIStyle]{
-		{Title: "OpenAI compatible", Description: "Most common - works with any /v1/chat/completions endpoint", Value: protocol.APIStyleOpenAI},
-		{Title: "Anthropic compatible", Description: "Native Claude / Messages API", Value: protocol.APIStyleAnthropic},
-	}
-	r, err := Select("Which API style does your provider speak?", items, SelectOptions{
-		Header:    ctx.Header,
-		Initial:   s.apiStyle,
-		CanGoBack: true,
-	})
-	if err != nil {
-		return s, StepCancel, err
-	}
-	switch {
-	case r.IsBack():
-		return s, StepBack, nil
-	case r.IsCancel():
-		return s, StepCancel, nil
-	}
-	s.apiStyle = r.Value
-	return s, StepContinue, nil
-}
-
 func qsProvider(ctx StepContext, s quickstartState) (quickstartState, StepResult, error) {
 	cfg := s.mgr.GetGlobalConfig()
 	var tm *data.TemplateManager
@@ -177,21 +156,16 @@ func qsProvider(ctx StepContext, s quickstartState) (quickstartState, StepResult
 	}
 	_ = tm.Initialize(context.Background())
 
+	// All non-OAuth templates that have at least one usable base URL.
 	var avail []*data.ProviderTemplate
 	for _, t := range tm.GetAllTemplates() {
 		if !t.Valid || t.AuthType == "oauth" {
 			continue
 		}
-		switch s.apiStyle {
-		case protocol.APIStyleOpenAI:
-			if t.BaseURLOpenAI != "" {
-				avail = append(avail, t)
-			}
-		case protocol.APIStyleAnthropic:
-			if t.BaseURLAnthropic != "" {
-				avail = append(avail, t)
-			}
+		if t.BaseURLOpenAI == "" && t.BaseURLAnthropic == "" {
+			continue
 		}
+		avail = append(avail, t)
 	}
 	sort.Slice(avail, func(i, j int) bool { return avail[i].Name < avail[j].Name })
 
@@ -199,10 +173,14 @@ func qsProvider(ctx StepContext, s quickstartState) (quickstartState, StepResult
 		{Title: "Custom", Description: "Enter base URL and token manually", Value: "custom"},
 	}
 	for _, t := range avail {
-		items = append(items, SelectItem[string]{Title: t.Name, Description: t.ID, Value: t.ID})
+		items = append(items, SelectItem[string]{
+			Title:       t.Name,
+			Description: templateStylesLabel(t),
+			Value:       t.ID,
+		})
 	}
 
-	r, err := Select(fmt.Sprintf("Pick a provider template (%s style):", s.apiStyle), items, SelectOptions{
+	r, err := Select("Pick a provider:", items, SelectOptions{
 		Header:    ctx.Header,
 		CanGoBack: true,
 		PageSize:  10,
@@ -218,20 +196,98 @@ func qsProvider(ctx StepContext, s quickstartState) (quickstartState, StepResult
 	}
 
 	s.providerName = r.Value
-	s.apiBase = ""
+	s.selectedTemplate = nil
+	s.apiBase = "" // chosen in the API Style step
 	if r.Value != "custom" {
 		for _, t := range avail {
 			if t.ID == r.Value {
-				if s.apiStyle == protocol.APIStyleAnthropic && t.BaseURLAnthropic != "" {
-					s.apiBase = t.BaseURLAnthropic
-				} else if t.BaseURLOpenAI != "" {
-					s.apiBase = t.BaseURLOpenAI
-				}
+				s.selectedTemplate = t
 				break
 			}
 		}
 	}
 	return s, StepContinue, nil
+}
+
+func qsAPIStyle(ctx StepContext, s quickstartState) (quickstartState, StepResult, error) {
+	var items []SelectItem[protocol.APIStyle]
+	prompt := "Pick the API style:"
+
+	if s.selectedTemplate == nil {
+		// Custom: both styles available.
+		items = []SelectItem[protocol.APIStyle]{
+			{Title: "OpenAI-compatible", Description: "/v1/chat/completions endpoint", Value: protocol.APIStyleOpenAI},
+			{Title: "Anthropic-compatible", Description: "/v1/messages endpoint", Value: protocol.APIStyleAnthropic},
+		}
+	} else {
+		t := s.selectedTemplate
+		hasOpenAI := t.BaseURLOpenAI != ""
+		hasAnthropic := t.BaseURLAnthropic != ""
+		soleHint := ""
+		if hasOpenAI != hasAnthropic { // exactly one supported
+			soleHint = "only style supported by " + t.Name
+		}
+		prompt = fmt.Sprintf("Pick the API style for %s:", t.Name)
+
+		if hasOpenAI {
+			desc := t.BaseURLOpenAI
+			if soleHint != "" {
+				desc = soleHint + " · " + desc
+			}
+			items = append(items, SelectItem[protocol.APIStyle]{
+				Title: "OpenAI-compatible", Description: desc, Value: protocol.APIStyleOpenAI,
+			})
+		}
+		if hasAnthropic {
+			desc := t.BaseURLAnthropic
+			if soleHint != "" {
+				desc = soleHint + " · " + desc
+			}
+			items = append(items, SelectItem[protocol.APIStyle]{
+				Title: "Anthropic-compatible", Description: desc, Value: protocol.APIStyleAnthropic,
+			})
+		}
+	}
+
+	r, err := Select(prompt, items, SelectOptions{
+		Header:    ctx.Header,
+		Initial:   s.apiStyle,
+		CanGoBack: true,
+	})
+	if err != nil {
+		return s, StepCancel, err
+	}
+	switch {
+	case r.IsBack():
+		return s, StepBack, nil
+	case r.IsCancel():
+		return s, StepCancel, nil
+	}
+	s.apiStyle = r.Value
+
+	// Pre-fill the base URL from the template, now that the style is known.
+	if s.selectedTemplate != nil {
+		switch s.apiStyle {
+		case protocol.APIStyleOpenAI:
+			s.apiBase = s.selectedTemplate.BaseURLOpenAI
+		case protocol.APIStyleAnthropic:
+			s.apiBase = s.selectedTemplate.BaseURLAnthropic
+		}
+	}
+	return s, StepContinue, nil
+}
+
+// templateStylesLabel returns a short description of which API styles a
+// template supports, e.g. "openai · anthropic" or just "openai".
+func templateStylesLabel(t *data.ProviderTemplate) string {
+	var styles []string
+	if t.BaseURLOpenAI != "" {
+		styles = append(styles, "openai")
+	}
+	if t.BaseURLAnthropic != "" {
+		styles = append(styles, "anthropic")
+	}
+	return strings.Join(styles, " · ")
 }
 
 func qsDetails(ctx StepContext, s quickstartState) (quickstartState, StepResult, error) {
