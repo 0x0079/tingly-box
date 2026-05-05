@@ -195,12 +195,14 @@ const SystemLogViewer = ({ getLogs, getRequestBody, pathPrefix }: SystemLogViewe
         }
     }, [autoRefresh]);
 
-    // Scroll to bottom when logs update — defer to after browser layout
+    // Scroll to bottom after logs render — double-RAF ensures layout is complete
     useEffect(() => {
         if (!tableContainerRef.current || logs.length === 0) return;
         const el = tableContainerRef.current;
         requestAnimationFrame(() => {
-            el.scrollTop = el.scrollHeight;
+            requestAnimationFrame(() => {
+                el.scrollTop = el.scrollHeight;
+            });
         });
     }, [logs]);
 
@@ -299,7 +301,7 @@ const SystemLogViewer = ({ getLogs, getRequestBody, pathPrefix }: SystemLogViewe
                     borderColor: 'divider',
                 }}
             >
-                <TableContainer sx={{ maxHeight: 'none', height: '100%' }}>
+                <TableContainer sx={{ maxHeight: 'none' }}>
                     <Table stickyHeader size="small">
                         <TableHead>
                             <TableRow>
