@@ -298,6 +298,11 @@ func Select[T any](prompt string, items []SelectItem[T], opts ...SelectOptions) 
 		return Result[T]{Action: ActionCancel}, fmt.Errorf("no items to select")
 	}
 
+	visible := make([]int, len(items))
+	for i := range items {
+		visible[i] = i
+	}
+
 	cur := 0
 	if opt.Initial != nil {
 		want := fmt.Sprintf("%v", opt.Initial)
@@ -309,7 +314,7 @@ func Select[T any](prompt string, items []SelectItem[T], opts ...SelectOptions) 
 		}
 	}
 
-	m := &selectModel[T]{prompt: prompt, items: items, opts: opt, cursor: cur}
+	m := &selectModel[T]{prompt: prompt, items: items, opts: opt, visible: visible, cursor: cur}
 	out, err := run(m)
 	if err != nil {
 		var zero T
@@ -319,71 +324,120 @@ func Select[T any](prompt string, items []SelectItem[T], opts ...SelectOptions) 
 }
 
 type selectModel[T any] struct {
-	prompt string
-	items  []SelectItem[T]
-	opts   SelectOptions
-	cursor int
-	offset int
-	done   bool
-	result Result[T]
+	prompt   string
+	items    []SelectItem[T] // all items (never mutated)
+	opts     SelectOptions
+	filter   string
+	visible  []int  // indices into items that pass the current filter
+	cursor   int    // index into visible
+	offset   int
+	done     bool
+	result   Result[T]
+	selTitle string // title of the confirmed item, captured on Enter
 }
 
 func (m *selectModel[T]) Init() tea.Cmd { return nil }
 
 func (m *selectModel[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if k, ok := msg.(tea.KeyMsg); ok {
-		switch {
-		case key.Matches(k, kUp):
-			if m.cursor > 0 {
-				m.cursor--
-			} else {
-				m.cursor = len(m.items) - 1
-			}
-			m.scroll()
-		case key.Matches(k, kDown):
-			if m.cursor < len(m.items)-1 {
-				m.cursor++
-			} else {
-				m.cursor = 0
-			}
-			m.scroll()
-		case key.Matches(k, kPgUp):
-			m.cursor -= m.opts.PageSize
-			if m.cursor < 0 {
-				m.cursor = 0
-			}
-			m.scroll()
-		case key.Matches(k, kPgDown):
-			m.cursor += m.opts.PageSize
-			if m.cursor >= len(m.items) {
-				m.cursor = len(m.items) - 1
-			}
-			m.scroll()
-		case key.Matches(k, kHome):
-			m.cursor = 0
-			m.scroll()
-		case key.Matches(k, kEnd):
-			m.cursor = len(m.items) - 1
-			m.scroll()
-		case key.Matches(k, kEnter):
-			m.result = Result[T]{Value: m.items[m.cursor].Value, Action: ActionConfirm}
-			m.done = true
-			return m, tea.Quit
-		case key.Matches(k, kBack):
-			if m.opts.CanGoBack {
-				var zero T
-				m.result = Result[T]{Value: zero, Action: ActionBack}
-				m.done = true
-				return m, tea.Quit
-			}
-		case key.Matches(k, kQuit):
+	k, ok := msg.(tea.KeyMsg)
+	if !ok {
+		return m, nil
+	}
+	switch k.Type {
+	case tea.KeyCtrlC:
+		var zero T
+		m.result = Result[T]{Value: zero, Action: ActionCancel}
+		m.done = true
+		return m, tea.Quit
+
+	case tea.KeyEsc:
+		if m.filter != "" {
+			m.filter = ""
+			m.refilter()
+			return m, nil
+		}
+		if m.opts.CanGoBack {
 			var zero T
-			m.result = Result[T]{Value: zero, Action: ActionCancel}
+			m.result = Result[T]{Value: zero, Action: ActionBack}
 			m.done = true
 			return m, tea.Quit
 		}
+
+	case tea.KeyEnter:
+		if len(m.visible) == 0 {
+			return m, nil
+		}
+		idx := m.visible[m.cursor]
+		m.selTitle = m.items[idx].Title
+		m.result = Result[T]{Value: m.items[idx].Value, Action: ActionConfirm}
+		m.done = true
+		return m, tea.Quit
+
+	case tea.KeyUp:
+		if m.cursor > 0 {
+			m.cursor--
+			m.scroll()
+		}
+	case tea.KeyDown:
+		if m.cursor < len(m.visible)-1 {
+			m.cursor++
+			m.scroll()
+		}
+	case tea.KeyPgUp:
+		m.cursor -= m.opts.PageSize
+		if m.cursor < 0 {
+			m.cursor = 0
+		}
+		m.scroll()
+	case tea.KeyPgDown:
+		m.cursor += m.opts.PageSize
+		if m.cursor >= len(m.visible) {
+			m.cursor = max(0, len(m.visible)-1)
+		}
+		m.scroll()
+	case tea.KeyHome:
+		m.cursor = 0
+		m.scroll()
+	case tea.KeyEnd:
+		m.cursor = max(0, len(m.visible)-1)
+		m.scroll()
+
+	case tea.KeyBackspace:
+		if len(m.filter) > 0 {
+			runes := []rune(m.filter)
+			m.filter = string(runes[:len(runes)-1])
+			m.refilter()
+		}
+
+	case tea.KeyRunes:
+		m.filter += string(k.Runes)
+		m.cursor = 0
+		m.refilter()
+
+	case tea.KeySpace:
+		m.filter += " "
+		m.refilter()
 	}
 	return m, nil
+}
+
+// refilter recomputes visible from the current filter and clamps the cursor.
+func (m *selectModel[T]) refilter() {
+	m.visible = m.visible[:0]
+	q := strings.ToLower(m.filter)
+	for i, it := range m.items {
+		if q == "" ||
+			strings.Contains(strings.ToLower(it.Title), q) ||
+			strings.Contains(strings.ToLower(it.Description), q) {
+			m.visible = append(m.visible, i)
+		}
+	}
+	if len(m.visible) == 0 {
+		m.cursor = 0
+	} else if m.cursor >= len(m.visible) {
+		m.cursor = len(m.visible) - 1
+	}
+	m.offset = 0
 }
 
 func (m *selectModel[T]) scroll() {
@@ -397,12 +451,13 @@ func (m *selectModel[T]) scroll() {
 func (m *selectModel[T]) View() string {
 	if m.done {
 		var ans string
-		if m.result.IsBack() {
+		switch {
+		case m.result.IsBack():
 			ans = "(back)"
-		} else if m.result.IsCancel() {
+		case m.result.IsCancel():
 			ans = "(cancelled)"
-		} else {
-			ans = m.items[m.cursor].Title
+		default:
+			ans = m.selTitle
 		}
 		return renderAnsweredPrompt(m.opts.Header, m.prompt, ans)
 	}
@@ -413,40 +468,56 @@ func (m *selectModel[T]) View() string {
 	}
 	parts = append(parts, qMark.String()+" "+promptStyle.Render(m.prompt))
 
-	end := m.offset + m.opts.PageSize
-	if end > len(m.items) {
-		end = len(m.items)
-	}
-
-	for i := m.offset; i < end; i++ {
-		it := m.items[i]
-		var line string
-		if i == m.cursor {
-			line = "  " + cursorStr + " " + itemSelStyle.Render(it.Title)
-			if it.Description != "" {
-				line += "  " + descSelStyle.Render(it.Description)
-			}
-		} else {
-			line = "  " + noCursorStr + " " + itemStyle.Render(it.Title)
-			if it.Description != "" {
-				line += "  " + descStyle.Render(it.Description)
-			}
+	if len(m.visible) == 0 {
+		parts = append(parts, descStyle.Render("  (no matches — backspace to clear)"))
+	} else {
+		end := m.offset + m.opts.PageSize
+		if end > len(m.visible) {
+			end = len(m.visible)
 		}
-		parts = append(parts, line)
+		for i := m.offset; i < end; i++ {
+			it := m.items[m.visible[i]]
+			var line string
+			if i == m.cursor {
+				line = "  " + cursorStr + " " + itemSelStyle.Render(it.Title)
+				if it.Description != "" {
+					line += "  " + descSelStyle.Render(it.Description)
+				}
+			} else {
+				line = "  " + noCursorStr + " " + itemStyle.Render(it.Title)
+				if it.Description != "" {
+					line += "  " + descStyle.Render(it.Description)
+				}
+			}
+			parts = append(parts, line)
+		}
 	}
 
-	if len(m.items) > m.opts.PageSize {
-		parts = append(parts, descStyle.Render(fmt.Sprintf("  %d/%d", m.cursor+1, len(m.items))))
+	// filter bar / pagination counter
+	if m.filter != "" {
+		bar := valueStyle.Render("  / ") + itemSelStyle.Render(m.filter) + valueStyle.Render("▋")
+		if len(m.visible) < len(m.items) {
+			bar += "  " + descStyle.Render(fmt.Sprintf("%d/%d", len(m.visible), len(m.items)))
+		}
+		parts = append(parts, bar)
+	} else if len(m.items) > m.opts.PageSize {
+		pos := 0
+		if len(m.visible) > 0 {
+			pos = m.cursor + 1
+		}
+		parts = append(parts, descStyle.Render(fmt.Sprintf("  %d/%d", pos, len(m.visible))))
 	}
 
-	help := helpLine(
-		[2]string{"↑/↓", "navigate"},
-		[2]string{"↵", "select"},
-	)
-	if m.opts.CanGoBack {
+	help := helpLine([2]string{"↑/↓", "move"}, [2]string{"↵", "select"})
+	if m.filter != "" {
+		help += "  " + helpLine([2]string{"esc", "clear filter"})
+	} else if m.opts.CanGoBack {
 		help += "  " + helpLine([2]string{"esc", "back"})
 	}
 	help += "  " + helpLine([2]string{"^c", "quit"})
+	if m.filter == "" {
+		help += "  " + helpLine([2]string{"type", "filter"})
+	}
 	parts = append(parts, "", help)
 
 	return lipgloss.JoinVertical(lipgloss.Left, parts...)
