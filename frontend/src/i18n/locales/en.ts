@@ -110,6 +110,7 @@ export default {
     "accessControl": "Access Control",
     "status": "Status",
     "system": "System",
+    "experimental": "Experimental",
     "logs": "Logs",
     "userRequest": "User Request",
     "skills": "Skills",

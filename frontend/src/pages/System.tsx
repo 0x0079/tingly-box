@@ -1,5 +1,4 @@
 import CardGrid from '@/components/CardGrid';
-import GlobalExperimentalFeatures from '@/components/GlobalExperimentalFeatures';
 import { PageLayout } from '@/components/PageLayout';
 import UnifiedCard from '@/components/UnifiedCard';
 import { Logout } from '@mui/icons-material';
@@ -315,20 +314,6 @@ const System = () => {
                     ) : (
                         <Typography color="text.secondary">{t('system.status.loading')}</Typography>
                     )}
-                </UnifiedCard>
-
-                {/* Global Experimental Features — surfaced right after Server Status so feature
-                    toggles are easier to find than when buried at the bottom of the page. */}
-                <UnifiedCard
-                    title={t('system.experimentalFeatures.title')}
-                    size="full"
-                >
-                    <Stack spacing={1}>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                            {t('system.experimentalFeatures.description')}
-                        </Typography>
-                        <GlobalExperimentalFeatures />
-                    </Stack>
                 </UnifiedCard>
 
                 {/* About - Simplified one-line-per-status design */}

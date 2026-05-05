@@ -37,6 +37,7 @@ import ProviderListPage from './pages/ProviderListPage';
 import System from './pages/System';
 import AccessControl from './pages/AccessControl';
 import LogsPage from './pages/system/LogsPage';
+import ExperimentalPage from './pages/system/ExperimentalPage';
 import GuardrailsPage from './pages/GuardrailsPage';
 import GuardrailsRulesPage from './pages/guardrails/RulesPage';
 import GuardrailsCredentialsPage from './pages/guardrails/CredentialsPage';
@@ -372,6 +373,7 @@ function AppContent() {
                     <Route path="/access-control" element={<AccessControl />} />
                     <Route path="/tingly-box-token" element={<APITokensPage />} />
                     <Route path="/system/logs" element={<LogsPage />} />
+                    <Route path="/system/experimental" element={<ExperimentalPage />} />
                     {/* Legacy redirects for backward compatibility */}
                     <Route path="/system/http-logs" element={<Navigate to="/system/logs" replace />} />
                     <Route path="/system/system-logs" element={<Navigate to="/system/logs" replace />} />
