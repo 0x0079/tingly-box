@@ -317,9 +317,10 @@ const TemplatePage: React.FC<TabTemplatePageProps> = (props) => {
 
     return (
         <>
-            <UnifiedCard size="full" title={title} rightAction={rightAction}>
-                {/*<Box ref={scrollContainerRef} sx={SCROLLBOX_SX(headerHeight)}>*/}
-                <Box ref={scrollContainerRef}>
+            <Box id="models-and-forwarding-rules" sx={{ scrollMarginTop: 16 }}>
+                <UnifiedCard size="full" title={title} rightAction={rightAction}>
+                    {/*<Box ref={scrollContainerRef} sx={SCROLLBOX_SX(headerHeight)}>*/}
+                    <Box ref={scrollContainerRef}>
                     {rules?.length === 0 ? (
                         <Box sx={{
                             textAlign: 'center',
@@ -361,6 +362,7 @@ const TemplatePage: React.FC<TabTemplatePageProps> = (props) => {
                     )}
                 </Box>
             </UnifiedCard>
+            </Box>
 
             <ModelSelectDialog open={modelSelectDialogOpen} onClose={() => {
             }}/>

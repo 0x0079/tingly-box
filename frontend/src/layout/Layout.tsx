@@ -76,12 +76,16 @@ const Layout = ({ children }: LayoutProps) => {
         return activeActivity;
     }, [effectiveZenEnabled, location.pathname, activeActivity]);
 
-    // Persist active activity + last visited path (localStorage for cross-session memory)
+    // Persist the active activity for cross-session boot. Per-activity path
+    // memory is intentionally scoped to the scenario (agent) activity only —
+    // every other activity opens at its defaultPath when re-clicked.
     useEffect(() => {
         sessionStorage.setItem('layout.activeActivity', activeActivity);
-        sessionStorage.setItem(`layout.activityPath.${activeActivity}`, location.pathname);
         localStorage.setItem('layout.activeActivity', activeActivity);
-        localStorage.setItem(`layout.activityPath.${activeActivity}`, location.pathname);
+        if (activeActivity === 'scenario') {
+            sessionStorage.setItem(`layout.activityPath.${activeActivity}`, location.pathname);
+            localStorage.setItem(`layout.activityPath.${activeActivity}`, location.pathname);
+        }
     }, [activeActivity, location.pathname]);
 
     // When navigating to a zen path, clear zenMoreActivity
@@ -187,21 +191,19 @@ const Layout = ({ children }: LayoutProps) => {
 
         sessionStorage.setItem('layout.activeActivity', item.key);
 
-        // Priority: saved path > defaultPath > item.path > first non-divider child
-        // But validate that saved path is still valid (exists in current item's children)
-        const savedPath = sessionStorage.getItem(`layout.activityPath.${item.key}`) || localStorage.getItem(`layout.activityPath.${item.key}`);
+        // Only the scenario activity restores its previously visited sub-page —
+        // every other activity always opens at its defaultPath, so users never
+        // get a stale "last viewed" view they don't expect.
         const firstNavChild = item.children?.find(c => c.type !== 'divider');
-
-        // Validate saved path - check if it still exists in this activity's children
         let targetPath: string | undefined;
-        if (savedPath && item.children) {
-            const isValidPath = item.children.some(c => c.type !== 'divider' && c.path === savedPath);
-            if (isValidPath) {
+
+        if (item.key === 'scenario') {
+            const savedPath = sessionStorage.getItem(`layout.activityPath.${item.key}`) || localStorage.getItem(`layout.activityPath.${item.key}`);
+            if (savedPath && item.children?.some(c => c.type !== 'divider' && c.path === savedPath)) {
                 targetPath = savedPath;
             }
         }
 
-        // Fall back to default options if saved path is invalid
         if (!targetPath) {
             targetPath = item.defaultPath || item.path || firstNavChild?.path;
         }
