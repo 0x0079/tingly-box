@@ -148,6 +148,13 @@ func (s *Server) HandleAnthropicMessages(c *gin.Context) {
 		return
 	}
 
+	// Replace image blocks with text descriptions before routing so the main model sees clean text.
+	if beta {
+		s.applyVisionProxyAnthropic(c, nil, &betaMessages, scenarioType)
+	} else {
+		s.applyVisionProxyAnthropic(c, &messages, nil, scenarioType)
+	}
+
 	// Select service using routing pipeline
 	provider, selectedService, err = s.routingSelector.SelectService(c, scenarioType, rule, reqParams)
 	if err != nil {

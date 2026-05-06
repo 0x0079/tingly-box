@@ -196,6 +196,11 @@ func extractAnthropicContent(content []anthropic.ContentBlockParamUnion) (string
 
 // hasImageInAnthropicContent checks if content contains image
 func hasImageInAnthropicContent(content []anthropic.ContentBlockParamUnion) bool {
+	return HasImageInAnthropicContent(content)
+}
+
+// HasImageInAnthropicContent checks if content contains an image block.
+func HasImageInAnthropicContent(content []anthropic.ContentBlockParamUnion) bool {
 	for _, blockUnion := range content {
 		if blockUnion.OfImage != nil {
 			return true
@@ -272,6 +277,11 @@ func extractBetaContent(content []anthropic.BetaContentBlockParamUnion) (string,
 
 // hasImageInBetaContent checks if content contains image
 func hasImageInBetaContent(content []anthropic.BetaContentBlockParamUnion) bool {
+	return HasImageInBetaContent(content)
+}
+
+// HasImageInBetaContent checks if beta content contains an image block.
+func HasImageInBetaContent(content []anthropic.BetaContentBlockParamUnion) bool {
 	for _, blockUnion := range content {
 		if blockUnion.OfImage != nil {
 			return true

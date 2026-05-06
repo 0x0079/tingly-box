@@ -170,11 +170,22 @@ type ProfileMeta struct {
 	Unified bool   `json:"unified" yaml:"unified"` // true=unified mode (single model), false=separate mode (individual models, default)
 }
 
+// VisionProxyConfig holds settings for the vision proxy preprocessing feature.
+// When enabled, image parts in incoming requests are replaced with text descriptions
+// produced by a dedicated vision model before the request reaches the main model.
+type VisionProxyConfig struct {
+	Enabled    bool   `json:"enabled,omitempty" yaml:"enabled,omitempty"`
+	ProviderID string `json:"provider_id,omitempty" yaml:"provider_id,omitempty"`
+	Model      string `json:"model,omitempty" yaml:"model,omitempty"`
+	TimeoutMs  int    `json:"timeout_ms,omitempty" yaml:"timeout_ms,omitempty"` // defaults to 15000
+}
+
 // ScenarioConfig represents configuration for a specific scenario
 type ScenarioConfig struct {
-	Scenario   RuleScenario           `json:"scenario" yaml:"scenario"`
-	Flags      ScenarioFlags          `json:"flags" yaml:"flags"`                               // Scenario configuration flags
-	Extensions map[string]interface{} `json:"extensions,omitempty" yaml:"extensions,omitempty"` // Reserved for future extensions
+	Scenario    RuleScenario           `json:"scenario" yaml:"scenario"`
+	Flags       ScenarioFlags          `json:"flags" yaml:"flags"`                               // Scenario configuration flags
+	VisionProxy VisionProxyConfig      `json:"vision_proxy,omitempty" yaml:"vision_proxy,omitempty"`
+	Extensions  map[string]interface{} `json:"extensions,omitempty" yaml:"extensions,omitempty"` // Reserved for future extensions
 }
 
 // GetDefaultFlags returns default flags for a scenario

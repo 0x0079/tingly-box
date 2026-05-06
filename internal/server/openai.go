@@ -187,6 +187,9 @@ func (s *Server) HandleOpenAIChatCompletions(c *gin.Context) {
 		return
 	}
 
+	// Replace image parts with text descriptions before routing so the main model sees clean text.
+	s.applyVisionProxyOpenAI(c, &req, scenarioType)
+
 	// Select service using routing pipeline
 	provider, selectedService, err = s.routingSelector.SelectService(c, scenarioType, rule, &req.ChatCompletionNewParams)
 	if err != nil {
