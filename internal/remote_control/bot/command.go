@@ -304,6 +304,7 @@ func newInterruptCommand(adapter BotHandlerAdapter) imbot.Command {
 
 func newProjectCommand(adapter BotHandlerAdapter) imbot.Command {
 	return imbot.NewCommand("cmd-project", "project", "Show and switch between projects").
+		WithAliases("p").
 		WithHandler(func(ctx *imbot.HandlerContext, args []string) error {
 			currentPath, _ := adapter.GetProjectPath(ctx.ChatID)
 
