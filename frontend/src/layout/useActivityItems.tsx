@@ -20,6 +20,7 @@ import {
     IconLock,
     IconMessageCircle,
     IconVector,
+    IconMicrophone,
     IconFlask,
 } from '@tabler/icons-react';
 import { OpenAI, Anthropic, Claude, OpenCode, Xcode, VSCode, Telegram, Feishu, Lark, DingTalk, Weixin, WeCom, Codex, OpenClaw } from '../components/BrandIcons';
@@ -87,6 +88,7 @@ export function useActivityItems(): ActivityItem[] {
                     { path: '/agent/openai', label: t('layout.nav.useOpenAI', { defaultValue: 'OpenAI' }), icon: <OpenAI size={20} /> },
                     { path: '/agent/anthropic', label: t('layout.nav.useAnthropic', { defaultValue: 'Anthropic' }), icon: <Anthropic size={20} /> },
                     { path: '/agent/embed', label: t('layout.nav.useEmbed', { defaultValue: 'Embed' }), icon: <IconVector size={20} /> },
+                    { path: '/agent/voice', label: t('layout.nav.useVoice', { defaultValue: 'Voice' }), icon: <IconMicrophone size={20} /> },
                     { type: 'divider' },
                     { path: '/agent/agent', label: t('common.openClaw', { defaultValue: 'OpenClaw' }), icon: <OpenClaw size={20} /> },
                 ],

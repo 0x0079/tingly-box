@@ -90,3 +90,14 @@ func (s *SimpleSelector) SelectServiceForEmbeddings(
 ) (*typ.Provider, *loadbalance.Service, error) {
 	return s.SelectService(c, scenario, rule, nil)
 }
+
+// SelectServiceForVoice is a variant of SelectService for voice (audio transcription/translation)
+// requests. Audio uploads carry no chat-style context, so content-based smart routing is skipped
+// (load balancing, affinity, and health filters still apply).
+func (s *SimpleSelector) SelectServiceForVoice(
+	c *gin.Context,
+	scenario typ.RuleScenario,
+	rule *typ.Rule,
+) (*typ.Provider, *loadbalance.Service, error) {
+	return s.SelectService(c, scenario, rule, nil)
+}

@@ -1147,6 +1147,10 @@ func (s *Server) SetupMixinEndpoints(group *gin.RouterGroup) {
 	// Embeddings endpoint (OpenAI compatible)
 	group.POST("/embeddings", s.getModelAuthMiddleware(), s.HandleOpenAIEmbeddings)
 
+	// Audio (speech-to-text) endpoints — voice scenario, also reachable via openai scenario
+	group.POST("/audio/transcriptions", s.getModelAuthMiddleware(), s.HandleOpenAIAudioTranscriptions)
+	group.POST("/audio/translations", s.getModelAuthMiddleware(), s.HandleOpenAIAudioTranslations)
+
 	// Models endpoint (routed by scenario: openai -> OpenAIListModels, anthropic/claude_code -> AnthropicListModels)
 	group.GET("/models", s.getModelAuthMiddleware(), s.ListModelsByScenario)
 }

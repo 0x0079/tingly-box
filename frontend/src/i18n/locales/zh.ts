@@ -44,6 +44,7 @@ export default {
       "useXcode": "Xcode",
       "useVSCode": "VS Code",
       "useEmbed": "Embed 嵌入",
+      "useVoice": "Voice 语音识别",
       "apiKeys": "API 密钥",
       "oauth": "OAuth 凭证",
       "credential": "凭证",

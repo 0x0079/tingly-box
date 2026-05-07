@@ -51,6 +51,39 @@ func ForwardOpenAIEmbeddings(fc *ForwardContext, wrapper *client.OpenAIClient, r
 	return resp, cancel, err
 }
 
+// ForwardOpenAIAudioTranscriptions sends an OpenAI audio transcription (STT) request.
+// Audio endpoints use multipart/form-data and skip the chat transform chain.
+func ForwardOpenAIAudioTranscriptions(fc *ForwardContext, wrapper *client.OpenAIClient, req *openai.AudioTranscriptionNewParams) (*openai.AudioTranscriptionNewResponseUnion, context.CancelFunc, error) {
+	if wrapper == nil {
+		return nil, nil, fmt.Errorf("failed to get OpenAI client for provider: %s", fc.Provider.Name)
+	}
+
+	ctx, cancel := fc.PrepareContext(req)
+
+	logrus.Infof("provider: %s, model: %s (audio.transcriptions)", fc.Provider.Name, req.Model)
+
+	resp, err := wrapper.AudioTranscriptionsNew(ctx, *req)
+	fc.Complete(ctx, resp, err)
+
+	return resp, cancel, err
+}
+
+// ForwardOpenAIAudioTranslations sends an OpenAI audio translation request (Whisper translates to English).
+func ForwardOpenAIAudioTranslations(fc *ForwardContext, wrapper *client.OpenAIClient, req *openai.AudioTranslationNewParams) (*openai.Translation, context.CancelFunc, error) {
+	if wrapper == nil {
+		return nil, nil, fmt.Errorf("failed to get OpenAI client for provider: %s", fc.Provider.Name)
+	}
+
+	ctx, cancel := fc.PrepareContext(req)
+
+	logrus.Infof("provider: %s, model: %s (audio.translations)", fc.Provider.Name, req.Model)
+
+	resp, err := wrapper.AudioTranslationsNew(ctx, *req)
+	fc.Complete(ctx, resp, err)
+
+	return resp, cancel, err
+}
+
 // ForwardOpenAIChatStream sends a streaming OpenAI chat completion request.
 // IMPORTANT: All transformations (protocol conversion + vendor-specific) should
 // be applied by the transform chain BEFORE calling this function.

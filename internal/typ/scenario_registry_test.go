@@ -65,6 +65,37 @@ func TestOpenAIScenarioSupportsBothTransports(t *testing.T) {
 	if !ScenarioSupportsTransport(ScenarioOpenAI, TransportEmbed) {
 		t.Fatalf("openai scenario should also support TransportEmbed (mixin extension)")
 	}
+	if !ScenarioSupportsTransport(ScenarioOpenAI, TransportVoice) {
+		t.Fatalf("openai scenario should also support TransportVoice (mixin extension)")
+	}
+}
+
+func TestVoiceScenarioDescriptor(t *testing.T) {
+	d, ok := GetScenarioDescriptor(ScenarioVoice)
+	if !ok {
+		t.Fatalf("expected %q descriptor to be registered", ScenarioVoice)
+	}
+	if !d.AllowRuleBinding || !d.AllowDirectPathUse {
+		t.Fatalf("expected voice descriptor to allow rule binding and path use, got %+v", d)
+	}
+	if !ScenarioSupportsTransport(ScenarioVoice, TransportVoice) {
+		t.Fatalf("expected voice scenario to support TransportVoice")
+	}
+	if ScenarioSupportsTransport(ScenarioVoice, TransportOpenAI) {
+		t.Fatalf("voice scenario must NOT support TransportOpenAI (chat must be rejected)")
+	}
+	if ScenarioSupportsTransport(ScenarioVoice, TransportAnthropic) {
+		t.Fatalf("voice scenario must NOT support TransportAnthropic")
+	}
+	if ScenarioSupportsTransport(ScenarioVoice, TransportEmbed) {
+		t.Fatalf("voice scenario must NOT support TransportEmbed")
+	}
+}
+
+func TestEmbedScenarioDoesNotSupportVoice(t *testing.T) {
+	if ScenarioSupportsTransport(ScenarioEmbed, TransportVoice) {
+		t.Fatalf("embed scenario must NOT support TransportVoice")
+	}
 }
 
 func TestScenarioSupportsTransport_UnknownScenario(t *testing.T) {

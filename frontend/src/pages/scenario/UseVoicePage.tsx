@@ -1,0 +1,57 @@
+import CardGrid from "@/components/CardGrid.tsx";
+import UnifiedCard from "@/components/UnifiedCard.tsx";
+import ProviderConfigCard from "@/components/ProviderConfigCard.tsx";
+import { Box } from '@mui/material';
+import PageLayout from '@/components/PageLayout';
+import TemplatePage from './components/TemplatePage.tsx';
+import { useScenarioPageInternal } from '@/pages/scenario/hooks/useScenarioPageInternal.ts';
+import { ScenarioPageModalProvider } from '@/pages/scenario/context/ScenarioPageContext';
+
+const scenario = "voice";
+
+const UseVoicePageContent: React.FC = () => {
+    const {
+        isLoading,
+        notification,
+        copyToClipboard,
+        baseUrl,
+    } = useScenarioPageInternal(scenario);
+
+    return (
+        <PageLayout loading={isLoading} notification={notification}>
+            <CardGrid>
+                <UnifiedCard
+                    title={
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <span>Voice (Speech Recognition) API Configuration</span>
+                        </Box>
+                    }
+                    size="full"
+                >
+                    <ProviderConfigCard
+                        title="Voice API Configuration"
+                        baseUrlPath="/tingly/voice"
+                        baseUrl={baseUrl}
+                        onCopy={copyToClipboard}
+                    />
+                </UnifiedCard>
+                <TemplatePage
+                    scenario={scenario}
+                    title="Speech Recognition Models and Forwarding Rules"
+                    collapsible={true}
+                    allowDeleteRule={true}
+                />
+            </CardGrid>
+        </PageLayout>
+    );
+};
+
+const UseVoicePage: React.FC = () => {
+    return (
+        <ScenarioPageModalProvider>
+            <UseVoicePageContent />
+        </ScenarioPageModalProvider>
+    );
+};
+
+export default UseVoicePage;

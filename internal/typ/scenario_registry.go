@@ -13,6 +13,7 @@ const (
 	TransportOpenAI    ScenarioTransport = "openai"
 	TransportAnthropic ScenarioTransport = "anthropic"
 	TransportEmbed     ScenarioTransport = "embed"
+	TransportVoice     ScenarioTransport = "voice"
 )
 
 type ScenarioDescriptor struct {
@@ -50,7 +51,7 @@ func builtinScenarioDescriptorFor(scenario RuleScenario) ScenarioDescriptor {
 	case ScenarioOpenAI:
 		return ScenarioDescriptor{
 			ID:                 scenario,
-			SupportedTransport: []ScenarioTransport{TransportOpenAI, TransportEmbed},
+			SupportedTransport: []ScenarioTransport{TransportOpenAI, TransportEmbed, TransportVoice},
 			AllowRuleBinding:   true,
 			AllowDirectPathUse: true,
 		}
@@ -58,6 +59,13 @@ func builtinScenarioDescriptorFor(scenario RuleScenario) ScenarioDescriptor {
 		return ScenarioDescriptor{
 			ID:                 scenario,
 			SupportedTransport: []ScenarioTransport{TransportEmbed},
+			AllowRuleBinding:   true,
+			AllowDirectPathUse: true,
+		}
+	case ScenarioVoice:
+		return ScenarioDescriptor{
+			ID:                 scenario,
+			SupportedTransport: []ScenarioTransport{TransportVoice},
 			AllowRuleBinding:   true,
 			AllowDirectPathUse: true,
 		}

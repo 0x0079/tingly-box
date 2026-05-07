@@ -124,6 +124,16 @@ func (c *OpenAIClient) EmbeddingsNew(ctx context.Context, req openai.EmbeddingNe
 	return c.client.Embeddings.New(ctx, req)
 }
 
+// AudioTranscriptionsNew creates a new audio transcription (speech-to-text) request
+func (c *OpenAIClient) AudioTranscriptionsNew(ctx context.Context, req openai.AudioTranscriptionNewParams) (*openai.AudioTranscriptionNewResponseUnion, error) {
+	return c.client.Audio.Transcriptions.New(ctx, req)
+}
+
+// AudioTranslationsNew creates a new audio translation (speech-to-English-text) request
+func (c *OpenAIClient) AudioTranslationsNew(ctx context.Context, req openai.AudioTranslationNewParams) (*openai.Translation, error) {
+	return c.client.Audio.Translations.New(ctx, req)
+}
+
 // ResponsesNew creates a new Responses API request
 func (c *OpenAIClient) ResponsesNew(ctx context.Context, req responses.ResponseNewParams) (*responses.Response, error) {
 	return c.client.Responses.New(ctx, req)
