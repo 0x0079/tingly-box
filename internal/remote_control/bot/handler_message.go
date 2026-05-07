@@ -187,8 +187,31 @@ func (h *BotHandler) HandleMessage(msg imbot.Message, platform imbot.Platform, b
 	}
 }
 
-// handleMediaMessage handles messages with media attachments
+// handleMediaMessage handles messages with media attachments.
+//
+// Vision/multimodal pathway: media is downloaded to {projectPath}/.agent/<file>
+// and surfaced to Claude Code via an explicit Read-tool directive — Claude Code's
+// Read tool returns image files as vision content blocks, which is the actual
+// entry point for the model to "see" the upload.
+//
+// Smart Guide (@tb) cannot consume media: tingly-agentscope's model adapters
+// (pkg/model/{openai,anthropic}/adapter_sdk.go) drop ImageBlock during message
+// conversion, so even a multimodal Msg.Content would be silently flattened to
+// text. Reject the upload with a clear nudge to /cc instead of doing a stealth
+// agent switch.
 func (h *BotHandler) handleMediaMessage(hCtx HandlerContext, media []imbot.MediaAttachment) {
+	// Only Claude Code can actually process media (vision via Read tool).
+	// If the user is currently with @tb, surface the limitation instead of
+	// silently routing to @cc — that hidden switch broke the conversation
+	// flow and is the root of "@tb doesn't support multimodal content".
+	currentAgent, _ := h.getCurrentAgent(hCtx.ChatID)
+	if currentAgent != agentClaudeCode {
+		h.SendText(hCtx, "📎 Media uploads are only supported by @cc (Claude Code).\n\n"+
+			"Switch with `/cc` (or send `/cc <your prompt>`) and resend the file. "+
+			"@tb cannot process images or documents.")
+		return
+	}
+
 	// Get project path for storage, use default if not bound
 	projectPath, ok := h.getProjectPath(hCtx)
 	if !ok {
@@ -207,8 +230,9 @@ func (h *BotHandler) handleMediaMessage(hCtx HandlerContext, media []imbot.Media
 		}
 	}
 
-	// 1. Download and store media files
-	var fileTags []string
+	// 1. Download and store media files, partitioned by kind so we can build
+	// type-aware Read directives below.
+	var imagePaths, docPaths, otherPaths []string
 	for _, attachment := range media {
 		// Check file type
 		if !h.fileStore.IsAllowedType(attachment.MimeType) {
@@ -226,30 +250,90 @@ func (h *BotHandler) handleMediaMessage(hCtx HandlerContext, media []imbot.Media
 			return
 		}
 
-		// Download file to project's .download directory
+		// Download file to project's .agent directory
 		storedFile, err := h.fileStore.DownloadFile(h.ctx, projectPath, attachment.URL, attachment.MimeType)
 		if err != nil {
 			h.SendText(hCtx, fmt.Sprintf("Failed to download file: %v", err))
 			return
-
 		}
 
-		// Add file tag to message
-		fileTags = append(fileTags, fmt.Sprintf("<upload_file>%s</upload_file>", storedFile.RelPath))
-	}
-
-	// 2. Construct message with file tags
-	message := hCtx.Text()
-	if len(fileTags) > 0 {
-		if message == "" {
-			message = strings.Join(fileTags, " ")
-		} else {
-			message = message + " " + strings.Join(fileTags, " ")
+		switch AllowedMIMETypes[attachment.MimeType] {
+		case "image":
+			imagePaths = append(imagePaths, storedFile.RelPath)
+		case "document":
+			docPaths = append(docPaths, storedFile.RelPath)
+		default:
+			otherPaths = append(otherPaths, storedFile.RelPath)
 		}
 	}
 
-	// 3. Execute with augmented message (using Claude Code)
+	// 2. Build augmented prompt. Without an explicit "use Read" instruction
+	// the model often acknowledges the upload and stops; with it, Read returns
+	// image content as vision blocks for image files and text for documents.
+	caption := strings.TrimSpace(hCtx.Text())
+	message := buildMediaPrompt(caption, imagePaths, docPaths, otherPaths)
+
+	// 3. Execute with the current agent (Claude Code at this point).
 	h.handleAgentMessage(hCtx, agentClaudeCode, message, projectPath)
+}
+
+// buildMediaPrompt composes a Claude Code prompt that (a) lists uploaded paths
+// and (b) explicitly directs the model to use the Read tool. Image paths get a
+// dedicated directive that names "vision" so the model knows Read returns
+// visual content, not just file metadata. The legacy <upload_file> tags are
+// kept appended to preserve compatibility with any external tooling that
+// scrapes them.
+func buildMediaPrompt(caption string, images, docs, others []string) string {
+	var sections []string
+
+	if len(images) > 0 {
+		var b strings.Builder
+		b.WriteString("📎 The user uploaded ")
+		if len(images) == 1 {
+			b.WriteString("an image")
+		} else {
+			fmt.Fprintf(&b, "%d images", len(images))
+		}
+		b.WriteString(". Use the Read tool on each path to view it — Read returns image files as vision content for analysis:\n")
+		for _, p := range images {
+			fmt.Fprintf(&b, "- %s\n", p)
+		}
+		sections = append(sections, strings.TrimRight(b.String(), "\n"))
+	}
+
+	if len(docs) > 0 {
+		var b strings.Builder
+		b.WriteString("📄 The user uploaded document(s). Use the Read tool to inspect:\n")
+		for _, p := range docs {
+			fmt.Fprintf(&b, "- %s\n", p)
+		}
+		sections = append(sections, strings.TrimRight(b.String(), "\n"))
+	}
+
+	if len(others) > 0 {
+		var b strings.Builder
+		b.WriteString("📦 The user uploaded file(s):\n")
+		for _, p := range others {
+			fmt.Fprintf(&b, "- %s\n", p)
+		}
+		sections = append(sections, strings.TrimRight(b.String(), "\n"))
+	}
+
+	if caption != "" {
+		sections = append(sections, "User message: "+caption)
+	}
+
+	// Legacy tags retained for back-compat.
+	all := append(append(append([]string{}, images...), docs...), others...)
+	if len(all) > 0 {
+		tags := make([]string, 0, len(all))
+		for _, p := range all {
+			tags = append(tags, fmt.Sprintf("<upload_file>%s</upload_file>", p))
+		}
+		sections = append(sections, strings.Join(tags, " "))
+	}
+
+	return strings.Join(sections, "\n\n")
 }
 
 // handlePermissionTextResponse handles text-based permission responses

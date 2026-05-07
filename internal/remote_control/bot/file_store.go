@@ -104,7 +104,7 @@ func (s *FileStore) SetTelegramToken(token string) {
 // StoredFile represents a stored file
 type StoredFile struct {
 	Path     string // Full path: {projectPath}/.agent/{filename}
-	RelPath  string // Relative path for agent: .agent/{filename}
+	RelPath  string // Project-relative path passed to the agent: .agent/{filename}
 	URL      string // Original URL
 	Filename string
 	Size     int64
@@ -167,7 +167,7 @@ func (s *FileStore) resolveTelegramFileURL(ctx context.Context, tgFileURL string
 	return fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", s.telegramToken, tf.Result.FilePath), nil
 }
 
-// DownloadFile downloads a file from a URL to the project's .download directory
+// DownloadFile downloads a file from a URL to the project's .agent directory
 // Returns an error if file size exceeds limits
 func (s *FileStore) DownloadFile(ctx context.Context, projectPath, url, mimeType string) (*StoredFile, error) {
 	// Validate MIME type first
@@ -269,7 +269,7 @@ func (s *FileStore) DownloadFile(ctx context.Context, projectPath, url, mimeType
 	}, nil
 }
 
-// StoreFile stores a file from a reader to the project's .download directory
+// StoreFile stores a file from a reader to the project's .agent directory
 func (s *FileStore) StoreFile(ctx context.Context, projectPath string, reader io.Reader, filename, mimeType string) (*StoredFile, error) {
 	// Validate MIME type first
 	if !s.IsAllowedType(mimeType) {
