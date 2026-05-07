@@ -167,7 +167,6 @@ func (h *BotHandler) handleBotProjectCommand(hCtx HandlerContext) {
 		return
 	}
 
-	platform := string(hCtx.Platform)
 	currentPath, _, _ := h.chatStore.GetProjectPath(hCtx.ChatID)
 
 	var buf strings.Builder
@@ -177,19 +176,7 @@ func (h *BotHandler) handleBotProjectCommand(hCtx HandlerContext) {
 		buf.WriteString("No project bound to this chat.\n\n")
 	}
 
-	var projectPaths []string
-	if hCtx.IsDirect() {
-		chats, err := h.chatStore.ListChatsByOwner(hCtx.SenderID, platform)
-		if err == nil {
-			seen := make(map[string]bool)
-			for _, chat := range chats {
-				if chat.ProjectPath != "" && !seen[chat.ProjectPath] {
-					projectPaths = append(projectPaths, chat.ProjectPath)
-					seen[chat.ProjectPath] = true
-				}
-			}
-		}
-	}
+	projectPaths, _ := h.chatStore.ListChatProjectPaths(hCtx.ChatID)
 
 	if len(projectPaths) > 0 {
 		buf.WriteString("Your Projects:\n")

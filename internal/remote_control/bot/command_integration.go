@@ -188,6 +188,11 @@ func (a *botHandlerAdapter) GetBashAllowlist() map[string]struct{} {
 	return allowlist
 }
 
+// ListChatProjectPaths returns the MRU project-path history for a chat.
+func (a *botHandlerAdapter) ListChatProjectPaths(chatID string) ([]string, error) {
+	return a.handler.chatStore.ListChatProjectPaths(chatID)
+}
+
 // ListProjectPaths lists all project paths for a user.
 func (a *botHandlerAdapter) ListProjectPaths(ownerID, platform string) ([]string, error) {
 	chats, err := a.handler.chatStore.ListChatsByOwner(ownerID, platform)

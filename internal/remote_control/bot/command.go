@@ -105,6 +105,9 @@ type BotHandlerAdapter interface {
 	// ListProjectPaths lists all project paths for a user
 	ListProjectPaths(ownerID, platform string) ([]string, error)
 
+	// ListChatProjectPaths lists the MRU per-chat project-path history.
+	ListChatProjectPaths(chatID string) ([]string, error)
+
 	// VerifyAndPair verifies a one-time pairing code and, on success, records
 	// the chat as paired with the bot. Implementations should also emit the
 	// matching audit events (success / failure).
@@ -205,14 +208,14 @@ func newBindCommand(adapter BotHandlerAdapter) imbot.Command {
 				return sendCommandText(adapter, ctx, usageBind)
 			}
 
-			// Numeric index → resolve from this user's known projects.
+			// Numeric index → resolve from this chat's project history.
 			if idx, ok := parsePositiveInt(input); ok {
-				paths, err := adapter.ListProjectPaths(ctx.SenderID, string(ctx.Platform))
+				paths, err := adapter.ListChatProjectPaths(ctx.ChatID)
 				if err != nil {
 					return sendCommandTextf(adapter, ctx, "Failed to list projects: %v", err)
 				}
 				if idx < 1 || idx > len(paths) {
-					return sendCommandTextf(adapter, ctx, "Invalid project number: %d (have %d)", idx, len(paths))
+					return sendCommandTextf(adapter, ctx, "Invalid project number: %d (have %d). Use /project to see the list.", idx, len(paths))
 				}
 				selected := paths[idx-1]
 				if err := adapter.SetProjectPath(ctx.ChatID, selected); err != nil {
@@ -311,7 +314,7 @@ func newProjectCommand(adapter BotHandlerAdapter) imbot.Command {
 				buf.WriteString("No project bound to this chat.\n\n")
 			}
 
-			projectPaths, _ := adapter.ListProjectPaths(ctx.SenderID, string(ctx.Platform))
+			projectPaths, _ := adapter.ListChatProjectPaths(ctx.ChatID)
 
 			// Interactive UI (inline keyboard) only for DMs on platforms that
 			// natively render buttons/cards. Other channels get a numbered text
