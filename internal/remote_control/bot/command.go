@@ -306,60 +306,19 @@ func newProjectCommand(adapter BotHandlerAdapter) imbot.Command {
 	return imbot.NewCommand("cmd-project", "project", "Show and switch between projects").
 		WithAliases("p").
 		WithHandler(func(ctx *imbot.HandlerContext, args []string) error {
-			currentPath, _ := adapter.GetProjectPath(ctx.ChatID)
-
-			var buf strings.Builder
-			if currentPath != "" {
-				buf.WriteString(fmt.Sprintf("Current Project:\n📁 %s\n\n", currentPath))
-			} else {
-				buf.WriteString("No project bound to this chat.\n\n")
-			}
-
+			currentPath := resolveProjectPath(adapter, ctx.ChatID, string(ctx.Platform))
 			projectPaths, _ := adapter.ListChatProjectPaths(ctx.ChatID)
 
-			// Body: same numbered list everywhere so the text content of /project
-			// is identical across platforms. Telegram (and other interactive
-			// platforms in DMs) gets an inline keyboard layered on top.
-			if len(projectPaths) > 0 {
-				buf.WriteString("Your Projects:\n")
-				for i, path := range projectPaths {
-					marker := ""
-					if path == currentPath {
-						marker = " ✓"
-					}
-					buf.WriteString(fmt.Sprintf("  %d. %s%s\n", i+1, path, marker))
-				}
-				buf.WriteString("\nUse /cd <number> or /cd <path> to switch.")
-			} else {
-				buf.WriteString("Use /cd <path> to bind a project.")
-			}
+			text := buildProjectText(currentPath, projectPaths)
 
 			caps := imbot.GetPlatformCapabilities(string(ctx.Platform))
 			interactive := ctx.IsDirectMessage && caps != nil && caps.SupportsInteraction()
 
 			if interactive && len(projectPaths) > 0 {
-				var rows [][]imbot.InlineKeyboardButton
-				for i, path := range projectPaths {
-					marker := ""
-					if path == currentPath {
-						marker = " ✓"
-					}
-					btn := imbot.InlineKeyboardButton{
-						Text:         fmt.Sprintf("%d. 📁 %s%s", i+1, filepath.Base(path), marker),
-						CallbackData: imbot.FormatCallbackData("project", "switch", path),
-					}
-					rows = append(rows, []imbot.InlineKeyboardButton{btn})
-				}
-				rows = append(rows, []imbot.InlineKeyboardButton{{
-					Text:         "📁 Bind New Project",
-					CallbackData: imbot.FormatCallbackData("action", "bind"),
-				}})
-
-				keyboard := imbot.InlineKeyboardMarkup{InlineKeyboard: rows}
+				keyboard := buildProjectKeyboard(currentPath, projectPaths)
 				tgKeyboard := imbot.BuildTelegramActionKeyboard(keyboard)
-
 				_, err := ctx.Bot.SendMessage(context.Background(), ctx.ChatID, &imbot.SendMessageOptions{
-					Text:     buf.String() + adapter.BuildReplyFooter(ctx.ChatID, string(ctx.Platform)),
+					Text:     text + adapter.BuildReplyFooter(ctx.ChatID, string(ctx.Platform)),
 					Metadata: buildTrackedReplyMetadata(tgKeyboard),
 				})
 				if err != nil {
@@ -368,7 +327,7 @@ func newProjectCommand(adapter BotHandlerAdapter) imbot.Command {
 				return nil
 			}
 
-			return sendCommandText(adapter, ctx, buf.String())
+			return sendCommandText(adapter, ctx, text)
 		}).
 		WithCategory("project").
 		WithPriority(60).

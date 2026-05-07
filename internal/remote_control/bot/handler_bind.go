@@ -25,7 +25,7 @@ func (h *BotHandler) handleBindConfirm(hCtx HandlerContext) {
 	}
 
 	// Bind the project
-	err := h.chatStore.BindProject(hCtx.ChatID, string(hCtx.Platform), hCtx.BotUUID, pending.ProposedPath)
+	err := h.chatStore.BindProject(hCtx.ChatID, string(hCtx.Platform), pending.ProposedPath, hCtx.SenderID)
 	if err != nil {
 		h.SendText(hCtx, fmt.Sprintf("Failed to bind project: %v", err))
 		delete(h.pendingBinds, hCtx.ChatID)
@@ -34,7 +34,7 @@ func (h *BotHandler) handleBindConfirm(hCtx HandlerContext) {
 	}
 
 	// Close the old session for this (chat, agent) combination if exists
-	agentType := "claude"
+	agentType := AgentNameClaude
 	oldSess := h.sessionMgr.FindBy(hCtx.ChatID, agentType, "")
 	if oldSess != nil {
 		h.sessionMgr.Close(oldSess.ID)

@@ -210,22 +210,6 @@ func (a *botHandlerAdapter) ListProjectPaths(ownerID, platform string) ([]string
 	return paths, nil
 }
 
-// SendMessageWithKeyboard sends a text message with an inline keyboard.
-// Note: For commands that need keyboards, use ctx.Bot directly in the handler.
-func (a *botHandlerAdapter) SendMessageWithKeyboard(chatID, text string, keyboard interface{}) error {
-	return fmt.Errorf("SendMessageWithKeyboard requires bot context, use ctx.Bot directly")
-}
-
-// StartInteractiveBind starts an interactive directory browser for project binding.
-func (a *botHandlerAdapter) StartInteractiveBind(chatID string) error {
-	hCtx := HandlerContext{
-		ChatID:   chatID,
-		Platform: imbot.PlatformTelegram,
-	}
-	a.handler.handleBindInteractive(hCtx)
-	return nil
-}
-
 // VerifyAndPair runs pairing-code verification and persists the binding.
 func (a *botHandlerAdapter) VerifyAndPair(botUUID, chatID, senderID, platform, code string) error {
 	return a.handler.VerifyAndPair(botUUID, chatID, senderID, platform, code)

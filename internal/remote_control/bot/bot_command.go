@@ -159,25 +159,15 @@ func (h *BotHandler) handleClearCommand(hCtx HandlerContext) {
 	}
 }
 
-// handleBotProjectCommand handles /project - shows current project and list with keyboard.
-// Kept as a direct BotHandler method since it needs inline keyboard + directory browser integration.
-func (h *BotHandler) handleBotProjectCommand(hCtx HandlerContext) {
-	if h.chatStore == nil {
-		h.SendText(hCtx, "Store not available")
-		return
-	}
-
-	currentPath, _, _ := h.chatStore.GetProjectPath(hCtx.ChatID)
-
+// buildProjectText builds the plain-text body for /project replies. The same
+// string is used by every platform so the information shown is always identical.
+func buildProjectText(currentPath string, projectPaths []string) string {
 	var buf strings.Builder
 	if currentPath != "" {
 		buf.WriteString(fmt.Sprintf("Current Project:\n📁 %s\n\n", currentPath))
 	} else {
 		buf.WriteString("No project bound to this chat.\n\n")
 	}
-
-	projectPaths, _ := h.chatStore.ListChatProjectPaths(hCtx.ChatID)
-
 	if len(projectPaths) > 0 {
 		buf.WriteString("Your Projects:\n")
 		for i, path := range projectPaths {
@@ -189,32 +179,49 @@ func (h *BotHandler) handleBotProjectCommand(hCtx HandlerContext) {
 		}
 		buf.WriteString("\nUse /cd <number> or /cd <path> to switch.")
 	} else {
-		buf.WriteString("No projects found.")
+		buf.WriteString("Use /cd <path> to bind a project.")
 	}
+	return buf.String()
+}
 
+// buildProjectKeyboard builds the inline keyboard for interactive /project replies.
+// Button labels include the index so they map 1-to-1 to the numbered text list.
+func buildProjectKeyboard(currentPath string, projectPaths []string) imbot.InlineKeyboardMarkup {
 	var rows [][]imbot.InlineKeyboardButton
 	for i, path := range projectPaths {
 		marker := ""
 		if path == currentPath {
 			marker = " ✓"
 		}
-		btn := imbot.InlineKeyboardButton{
+		rows = append(rows, []imbot.InlineKeyboardButton{{
 			Text:         fmt.Sprintf("%d. 📁 %s%s", i+1, filepath.Base(path), marker),
 			CallbackData: imbot.FormatCallbackData("project", "switch", path),
-		}
-		rows = append(rows, []imbot.InlineKeyboardButton{btn})
+		}})
 	}
-
 	rows = append(rows, []imbot.InlineKeyboardButton{{
 		Text:         "📁 Bind New Project",
 		CallbackData: imbot.FormatCallbackData("action", "bind"),
 	}})
+	return imbot.InlineKeyboardMarkup{InlineKeyboard: rows}
+}
 
-	keyboard := imbot.InlineKeyboardMarkup{InlineKeyboard: rows}
+// handleBotProjectCommand handles the inline-keyboard action-menu "project" button.
+// Always runs from a Telegram callback, so always sends with a keyboard.
+func (h *BotHandler) handleBotProjectCommand(hCtx HandlerContext) {
+	if h.chatStore == nil {
+		h.SendText(hCtx, "Store not available")
+		return
+	}
+
+	currentPath, _, _ := h.chatStore.GetProjectPath(hCtx.ChatID)
+	projectPaths, _ := h.chatStore.ListChatProjectPaths(hCtx.ChatID)
+
+	text := buildProjectText(currentPath, projectPaths)
+	keyboard := buildProjectKeyboard(currentPath, projectPaths)
 	tgKeyboard := imbot.BuildTelegramActionKeyboard(keyboard)
 
 	_, err := hCtx.Bot.SendMessage(context.Background(), hCtx.ChatID, &imbot.SendMessageOptions{
-		Text:     buf.String(),
+		Text:     text,
 		Metadata: buildTrackedReplyMetadata(tgKeyboard),
 	})
 	if err != nil {
