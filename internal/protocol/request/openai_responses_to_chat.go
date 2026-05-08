@@ -58,13 +58,55 @@ func ConvertOpenAIResponsesToChat(params *responses.ResponseNewParams, defaultMa
 	return result
 }
 
+// pendingToolCall holds a single tool call during input-to-message conversion.
+// Consecutive function_call input items are accumulated and flushed together
+// as a single assistant message with all tool_calls, so the resulting message
+// sequence satisfies providers (DeepSeek) that require tool messages to
+// immediately follow the assistant message that requested them.
+type pendingToolCall struct {
+	CallID    string
+	Name      string
+	Arguments string
+}
+
 // ConvertResponsesInputToMessages converts Responses API input items to Chat Completion messages.
 func ConvertResponsesInputToMessages(items responses.ResponseInputParam) []openai.ChatCompletionMessageParamUnion {
 	var messages []openai.ChatCompletionMessageParamUnion
 
+	flushCalls := func(calls []pendingToolCall) {
+		if len(calls) == 0 {
+			return
+		}
+		toolCalls := make([]map[string]interface{}, 0, len(calls))
+		for _, tc := range calls {
+			toolCalls = append(toolCalls, map[string]interface{}{
+				"id":   tc.CallID,
+				"type": "function",
+				"function": map[string]interface{}{
+					"name":      tc.Name,
+					"arguments": tc.Arguments,
+				},
+			})
+		}
+		msgMap := map[string]interface{}{
+			"role":       "assistant",
+			"content":    "",
+			"tool_calls": toolCalls,
+		}
+		msgBytes, _ := json.Marshal(msgMap)
+		var result openai.ChatCompletionMessageParamUnion
+		_ = json.Unmarshal(msgBytes, &result)
+		messages = append(messages, result)
+	}
+
+	var pendingCalls []pendingToolCall
+
 	for _, item := range items {
-		// Handle message items
+		// Handle message items — flush pending calls first (message boundary)
 		if !param.IsOmitted(item.OfMessage) {
+			flushCalls(pendingCalls)
+			pendingCalls = nil
+
 			msg := item.OfMessage
 			role := string(msg.Role)
 
@@ -131,35 +173,24 @@ func ConvertResponsesInputToMessages(items responses.ResponseInputParam) []opena
 			continue
 		}
 
-		// Handle function call items (tool invocations from assistant)
+			// Accumulate consecutive function_call items into a single assistant message.
+		// Flushed on the next message boundary or first function_call_output.
 		if !param.IsOmitted(item.OfFunctionCall) {
 			fnCall := item.OfFunctionCall
-
-			// Create assistant message with tool_calls
-			toolCallMap := map[string]interface{}{
-				"id":   fnCall.CallID,
-				"type": "function",
-				"function": map[string]interface{}{
-					"name":      fnCall.Name,
-					"arguments": fnCall.Arguments,
-				},
-			}
-
-			msgMap := map[string]interface{}{
-				"role":       "assistant",
-				"content":    "",
-				"tool_calls": []map[string]interface{}{toolCallMap},
-			}
-
-			msgBytes, _ := json.Marshal(msgMap)
-			var result openai.ChatCompletionMessageParamUnion
-			_ = json.Unmarshal(msgBytes, &result)
-			messages = append(messages, result)
+			pendingCalls = append(pendingCalls, pendingToolCall{
+				CallID:    fnCall.CallID,
+				Name:      fnCall.Name,
+				Arguments: fnCall.Arguments,
+			})
 			continue
 		}
 
 		// Handle function call output items (tool results)
+		// Flush pending function calls as a single assistant message first
 		if !param.IsOmitted(item.OfFunctionCallOutput) {
+			flushCalls(pendingCalls)
+			pendingCalls = nil
+
 			output := item.OfFunctionCallOutput
 
 			// Extract output content
@@ -181,6 +212,9 @@ func ConvertResponsesInputToMessages(items responses.ResponseInputParam) []opena
 			messages = append(messages, result)
 		}
 	}
+
+	// Flush remaining pending calls at end of input
+	flushCalls(pendingCalls)
 
 	return messages
 }

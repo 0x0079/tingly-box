@@ -65,21 +65,25 @@ var ProviderConfigs = []providerConfig{
 // GetProviderTransform identifies provider by APIBase URL string and returns its transform
 // Returns nil if no specific transform is needed (fallback to default)
 func GetProviderTransform(providerURL, model string) ProviderTransform {
-	if providerURL == "" {
-		return nil
-	}
-
 	apiBase := strings.ToLower(providerURL)
 	modelLower := strings.ToLower(model)
 
 	// Match by APIBase domain and optional ModelPattern
-	for _, config := range ProviderConfigs {
-		if strings.Contains(apiBase, config.APIBasePattern) {
-			// If a model pattern is specified, it must also match
-			if config.ModelPattern == "*" || strings.Contains(modelLower, config.ModelPattern) {
-				return config.Transform
+	if apiBase != "" {
+		for _, config := range ProviderConfigs {
+			if strings.Contains(apiBase, config.APIBasePattern) {
+				if config.ModelPattern == "*" || strings.Contains(modelLower, config.ModelPattern) {
+					return config.Transform
+				}
 			}
 		}
+	}
+
+	// Fallback: detect DeepSeek models by model name for proxies/aggregators
+	// DeepSeek reasoning models (deepseek-reasoner, deepseek-r1, deepseek-r1-*)
+	// and DeepSeek V-series thinking models require reasoning_content handling
+	if strings.Contains(modelLower, "deepseek") {
+		return applyDeepSeekTransform
 	}
 
 	// No specific transform needed - use default
