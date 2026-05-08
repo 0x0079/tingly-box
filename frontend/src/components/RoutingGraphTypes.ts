@@ -49,6 +49,13 @@ export interface RuleFlags {
     cursorCompatAuto?: boolean;
 }
 
+export interface VisionProxyConfig {
+    enabled?: boolean;
+    provider_id?: string;
+    model?: string;
+    timeout_ms?: number;
+}
+
 export interface Rule {
     uuid: string;
     scenario: string;

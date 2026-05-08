@@ -849,5 +849,11 @@ export default {
     "quickLinks": "Quick Links",
     "goToDashboard": "Dashboard",
     "goToHelp": "Help & Docs"
+  },
+  "visionProxy": {
+    "title": "Vision Proxy",
+    "description": "When enabled, image parts in incoming requests are described by the proxy model and replaced with text before reaching the main model. Only the image + the user's text from the same message are sent to the proxy — no history, no system prompt.",
+    "selectModel": "Select proxy model",
+    "unavailableProvider": "The configured vision proxy provider is no longer available. Please select a different model."
   }
 };

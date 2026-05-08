@@ -849,5 +849,11 @@ export default {
     "quickLinks": "快速链接",
     "goToDashboard": "控制台",
     "goToHelp": "帮助与文档"
+  },
+  "visionProxy": {
+    "title": "图片代理",
+    "description": "开启后，传入请求中的图片会由代理模型生成描述，替换为文本后再发往主模型。辅助调用仅携带图片和同条消息的用户文字，不带历史记录和系统提示，保持低成本与上下文隔离。",
+    "selectModel": "选择代理模型",
+    "unavailableProvider": "图片代理配置的 Provider 已不可用，请重新选择模型。"
   }
 };

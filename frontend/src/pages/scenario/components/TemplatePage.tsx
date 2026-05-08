@@ -7,6 +7,7 @@ import EmptyStateGuide from '@/components/EmptyStateGuide';
 import RuleCard from '@/components/RuleCard.tsx';
 import ImportModal from '@/components/ImportModal';
 import UnifiedCard from '@/components/UnifiedCard';
+import VisionProxyCard from '@/components/VisionProxyCard';
 import type {TabTemplatePageProps} from './TemplatePage.types';
 import {TemplatePageActions} from './TemplatePageActions';
 import {useTemplatePageRules} from '@/pages/scenario/hooks/useTemplatePageRules';
@@ -317,6 +318,9 @@ const TemplatePage: React.FC<TabTemplatePageProps> = (props) => {
 
     return (
         <>
+            {scenario && providers.length > 0 && (
+                <VisionProxyCard scenario={scenario} providers={providers}/>
+            )}
             <UnifiedCard
                 id="models-and-forwarding-rules"
                 size="full"
