@@ -303,58 +303,57 @@ const System = () => {
                                     })}
                                 </Box>
                             </Box>
-
-                            {/* Global Proxy URL — moved to the bottom of the card */}
-                            <Box
-                                sx={{
-                                    mt: 1,
-                                    pt: 2,
-                                    borderTop: '1px solid',
-                                    borderColor: 'divider',
-                                }}
-                            >
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                                    <IconWorld size={16} style={{ color: 'var(--mui-palette-text-secondary)' }} />
-                                    <Typography variant="body2" sx={{ color: 'text.primary', fontWeight: 500 }}>
-                                        {t('system.proxy.globalProxyUrl.label')}
-                                    </Typography>
-                                </Box>
-                                <Stack direction="row" spacing={1} alignItems="center">
-                                    <TextField
-                                        size="small"
-                                        fullWidth
-                                        value={globalProxyInput}
-                                        onChange={(e) => setGlobalProxyInput(e.target.value)}
-                                        placeholder="http://127.0.0.1:7890"
-                                        sx={{ maxWidth: 480 }}
-                                        InputProps={globalProxyUrl && globalProxyInput === globalProxyUrl ? {
-                                            endAdornment: (
-                                                <InputAdornment position="end">
-                                                    <Tooltip title={t('common.saved', { defaultValue: 'Saved' })} arrow>
-                                                        <IconCheck size={16} style={{ color: 'var(--mui-palette-success-main)' }} />
-                                                    </Tooltip>
-                                                </InputAdornment>
-                                            )
-                                        } : undefined}
-                                    />
-                                    <Button
-                                        size="small"
-                                        variant="contained"
-                                        onClick={saveGlobalProxyUrl}
-                                        disabled={proxyUrlSaving || globalProxyInput === globalProxyUrl}
-                                        sx={{ whiteSpace: 'nowrap', minWidth: 72 }}
-                                    >
-                                        {proxyUrlSaving ? <CircularProgress size={14} color="inherit" /> : t('common.save')}
-                                    </Button>
-                                </Stack>
-                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>
-                                    {t('system.proxy.globalProxyUrl.helper')}
-                                </Typography>
-                            </Box>
                         </Stack>
                     ) : (
                         <Typography color="text.secondary">{t('system.status.loading')}</Typography>
                     )}
+                </UnifiedCard>
+
+                {/* Quick Proxy — dedicated card for the reusable proxy preset */}
+                <UnifiedCard
+                    title={
+                        <Stack direction="row" alignItems="center" spacing={1}>
+                            <IconWorld size={18} style={{ color: 'var(--mui-palette-text-secondary)' }} />
+                            <Typography variant="subtitle1" fontWeight={600}>
+                                {t('system.proxy.globalProxyUrl.label')}
+                            </Typography>
+                        </Stack>
+                    }
+                    size="full"
+                >
+                    <Stack spacing={1.5}>
+                        <Typography variant="body2" color="text.secondary">
+                            {t('system.proxy.globalProxyUrl.description', { defaultValue: t('system.proxy.globalProxyUrl.helper') })}
+                        </Typography>
+                        <Stack direction="row" spacing={1} alignItems="center">
+                            <TextField
+                                size="small"
+                                fullWidth
+                                value={globalProxyInput}
+                                onChange={(e) => setGlobalProxyInput(e.target.value)}
+                                placeholder="http://127.0.0.1:7890"
+                                sx={{ maxWidth: 480 }}
+                                InputProps={globalProxyUrl && globalProxyInput === globalProxyUrl ? {
+                                    endAdornment: (
+                                        <InputAdornment position="end">
+                                            <Tooltip title={t('common.saved', { defaultValue: 'Saved' })} arrow>
+                                                <IconCheck size={16} style={{ color: 'var(--mui-palette-success-main)' }} />
+                                            </Tooltip>
+                                        </InputAdornment>
+                                    )
+                                } : undefined}
+                            />
+                            <Button
+                                size="small"
+                                variant="contained"
+                                onClick={saveGlobalProxyUrl}
+                                disabled={proxyUrlSaving || globalProxyInput === globalProxyUrl}
+                                sx={{ whiteSpace: 'nowrap', minWidth: 72 }}
+                            >
+                                {proxyUrlSaving ? <CircularProgress size={14} color="inherit" /> : t('common.save')}
+                            </Button>
+                        </Stack>
+                    </Stack>
                 </UnifiedCard>
 
                 {/* About - Simplified one-line-per-status design */}
