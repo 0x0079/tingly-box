@@ -253,44 +253,6 @@ export const ZenActivityBar: React.FC<ActivityBarProps> = ({
                     </Tooltip>
                 )}
 
-                {/* Theme toggle button - only show in normal mode */}
-                {!zenEnabled && (
-                    <Tooltip title={t('layout.activityBar.theme')} placement="right" arrow>
-                        <ListItemButton
-                            onClick={handleThemeMenuClick}
-                            sx={activityItemSx({
-                                '&:hover': { bgcolor: 'action.hover' },
-                            })}
-                        >
-                            <ListItemIcon sx={{ minWidth: 0, color: 'inherit', justifyContent: 'center' }}>
-                                <IconBrush size={22} />
-                            </ListItemIcon>
-                            <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'inherit', textAlign: 'center', lineHeight: 1.2 }}>
-                                {t('common.theme')}
-                            </Typography>
-                        </ListItemButton>
-                    </Tooltip>
-                )}
-
-                {/* Language toggle button - only show in normal mode */}
-                {!zenEnabled && (
-                    <Tooltip title={t('system.language.title')} placement="right" arrow>
-                        <ListItemButton
-                            onClick={handleLanguageMenuClick}
-                            sx={activityItemSx({
-                                '&:hover': { bgcolor: 'action.hover' },
-                            })}
-                        >
-                            <ListItemIcon sx={{ minWidth: 0, color: 'inherit', justifyContent: 'center' }}>
-                                <IconLanguage size={22} />
-                            </ListItemIcon>
-                            <Typography variant="caption" sx={{ fontSize: '0.5rem', color: 'inherit', textAlign: 'center', lineHeight: 1.1 }}>
-                                {i18n.language === 'zh' ? '中文' : 'EN'}
-                            </Typography>
-                        </ListItemButton>
-                    </Tooltip>
-                )}
-
                 {/* Theme menu - only show in normal mode */}
                 {!zenEnabled && (
                     <Menu
@@ -376,6 +338,26 @@ export const ZenActivityBar: React.FC<ActivityBarProps> = ({
                             <Typography>{t('system.language.zh')}</Typography>
                         </MenuItem>
                     </Menu>
+                )}
+
+                {/* Onboarding Quick Add Button - above Zen */}
+                {!zenEnabled && (
+                    <Tooltip title={t('layout.onboarding', { defaultValue: 'Quick Add Provider' })} placement="right" arrow>
+                        <ListItemButton
+                            component={RouterLink}
+                            to="/onboarding"
+                            sx={activityItemSx({
+                                '&:hover': { bgcolor: 'action.hover', color: 'primary.main' },
+                            })}
+                        >
+                            <ListItemIcon sx={{ minWidth: 0, color: 'inherit', justifyContent: 'center' }}>
+                                <IconWand size={22} />
+                            </ListItemIcon>
+                            <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'inherit', textAlign: 'center', lineHeight: 1.2 }}>
+                                {t('layout.onboardingShort', { defaultValue: 'Onboard' })}
+                            </Typography>
+                        </ListItemButton>
+                    </Tooltip>
                 )}
 
                 {/* Zen mode toggle button - only show in normal mode */}
@@ -493,46 +475,75 @@ export const ZenActivityBar: React.FC<ActivityBarProps> = ({
                 )}
             </Box>
 
-            {/* Onboarding Quick Add Button - above user icon */}
-            <Box
-                sx={{
-                    py: 0.5,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                }}
-            >
-                <Tooltip title={t('layout.onboarding', { defaultValue: 'Quick Add Provider' })} placement="right" arrow>
-                    <ListItemButton
-                        component={RouterLink}
-                        to="/onboarding"
-                        sx={{
-                            minHeight: 48,
-                            mx: 0.5,
-                            px: activityItemPaddingX,
-                            py: 0.75,
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 0.25,
-                            position: 'relative',
-                            color: 'text.secondary',
-                            borderRadius: activityItemRadius,
-                            cursor: 'pointer',
-                            '&:hover': { bgcolor: 'action.hover', color: 'primary.main' },
-                        }}
-                    >
-                        <ListItemIcon sx={{ minWidth: 0, color: 'inherit', justifyContent: 'center' }}>
-                            <IconWand size={22} />
-                        </ListItemIcon>
-                        <Typography variant="caption" sx={{ fontSize: '0.6rem', color: 'inherit', textAlign: 'center', lineHeight: 1.1 }}>
-                            {t('layout.onboardingShort', { defaultValue: 'Onboard' })}
-                        </Typography>
-                    </ListItemButton>
-                </Tooltip>
-            </Box>
+            {/* Theme & Language buttons - bottom-left, above user icon */}
+            {!zenEnabled && (
+                <Box
+                    sx={{
+                        py: 0.5,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                    }}
+                >
+                    <Tooltip title={t('layout.activityBar.theme')} placement="right" arrow>
+                        <ListItemButton
+                            onClick={handleThemeMenuClick}
+                            sx={{
+                                minHeight: 48,
+                                mx: 0.5,
+                                px: activityItemPaddingX,
+                                py: 0.75,
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 0.25,
+                                position: 'relative',
+                                color: 'text.secondary',
+                                borderRadius: activityItemRadius,
+                                cursor: 'pointer',
+                                '&:hover': { bgcolor: 'action.hover', color: 'primary.main' },
+                            }}
+                        >
+                            <ListItemIcon sx={{ minWidth: 0, color: 'inherit', justifyContent: 'center' }}>
+                                <IconBrush size={22} />
+                            </ListItemIcon>
+                            <Typography variant="caption" sx={{ fontSize: '0.6rem', color: 'inherit', textAlign: 'center', lineHeight: 1.1 }}>
+                                {t('common.theme')}
+                            </Typography>
+                        </ListItemButton>
+                    </Tooltip>
+
+                    <Tooltip title={t('system.language.title')} placement="right" arrow>
+                        <ListItemButton
+                            onClick={handleLanguageMenuClick}
+                            sx={{
+                                minHeight: 48,
+                                mx: 0.5,
+                                px: activityItemPaddingX,
+                                py: 0.75,
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 0.25,
+                                position: 'relative',
+                                color: 'text.secondary',
+                                borderRadius: activityItemRadius,
+                                cursor: 'pointer',
+                                '&:hover': { bgcolor: 'action.hover', color: 'primary.main' },
+                            }}
+                        >
+                            <ListItemIcon sx={{ minWidth: 0, color: 'inherit', justifyContent: 'center' }}>
+                                <IconLanguage size={22} />
+                            </ListItemIcon>
+                            <Typography variant="caption" sx={{ fontSize: '0.5rem', color: 'inherit', textAlign: 'center', lineHeight: 1.1 }}>
+                                {i18n.language === 'zh' ? '中文' : 'EN'}
+                            </Typography>
+                        </ListItemButton>
+                    </Tooltip>
+                </Box>
+            )}
 
             {/* Bottom: User icon */}
             <Box
