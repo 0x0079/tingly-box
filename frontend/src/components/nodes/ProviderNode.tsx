@@ -76,6 +76,7 @@ export const ProviderNode: React.FC<ProviderNodeComponentProps> = ({
 
     const providerInfo = getProviderInfo(provider.provider, providersData);
     const isProviderMissing = provider.provider && !providerInfo.exists;
+    const isOauthProvider = providerInfo.provider?.auth_type === 'oauth';
 
     const handleMenuClick = (event: React.MouseEvent<HTMLElement>) => {
         event.stopPropagation();
@@ -93,6 +94,9 @@ export const ProviderNode: React.FC<ProviderNodeComponentProps> = ({
 
     const handleProbeClick = (event: React.MouseEvent<HTMLElement>) => {
         event.stopPropagation();
+        if (isOauthProvider) {
+            return;
+        }
         setProbeAnchorEl(event.currentTarget);
     };
 
@@ -224,14 +228,17 @@ export const ProviderNode: React.FC<ProviderNodeComponentProps> = ({
                 <ActionButtonsBox className="action-buttons">
                     {/* Probe Button */}
                     {provider.provider && providerInfo.exists && (
-                        <Tooltip title="Test Provider">
-                            <IconButton
-                                size="small"
-                                onClick={handleProbeClick}
-                                sx={{ p: 0.5, backgroundColor: 'background.paper' }}
-                            >
-                                <PlayIcon sx={{ fontSize: '1rem', color: 'success.main' }} />
-                            </IconButton>
+                        <Tooltip title={isOauthProvider ? 'OAuth 暂不支持 Test' : 'Test Provider'}>
+                            <span>
+                                <IconButton
+                                    size="small"
+                                    onClick={handleProbeClick}
+                                    disabled={isOauthProvider}
+                                    sx={{ p: 0.5, backgroundColor: 'background.paper' }}
+                                >
+                                    <PlayIcon sx={{ fontSize: '1rem', color: 'success.main' }} />
+                                </IconButton>
+                            </span>
                         </Tooltip>
                     )}
                     {/* Delete Button */}
