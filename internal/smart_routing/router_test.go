@@ -45,7 +45,7 @@ func TestSmartRouting_Integration_OpenAI(t *testing.T) {
 	}
 
 	// Extract context and evaluate
-	ctx := ExtractContextFromOpenAIRequest(req)
+	ctx := ExtractContext(req)
 	services, matched := router.EvaluateRequest(ctx)
 
 	require.True(t, matched, "should match the gpt routing rule")
@@ -116,7 +116,7 @@ func TestSmartRouting_Integration_Anthropic(t *testing.T) {
 		},
 	}
 
-	ctx := ExtractContextFromAnthropicRequest(reqThinking)
+	ctx := ExtractContext(reqThinking)
 	services, matched := router.EvaluateRequest(ctx)
 
 	require.True(t, matched, "should match the thinking routing rule")
@@ -133,7 +133,7 @@ func TestSmartRouting_Integration_Anthropic(t *testing.T) {
 		},
 	}
 
-	ctx = ExtractContextFromAnthropicRequest(reqHaiku)
+	ctx = ExtractContext(reqHaiku)
 	services, matched = router.EvaluateRequest(ctx)
 
 	require.True(t, matched, "should match the haiku routing rule")
@@ -154,7 +154,7 @@ func TestSmartRouting_Integration_Anthropic_ImageContent(t *testing.T) {
 		},
 	}
 
-	ctx := ExtractContextFromAnthropicRequest(req)
+	ctx := ExtractContext(req)
 	require.Equal(t, "image", ctx.LatestContentType)
 }
 
