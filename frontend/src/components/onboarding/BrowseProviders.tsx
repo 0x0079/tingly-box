@@ -316,6 +316,15 @@ const BrowseProviders: React.FC<BrowseProvidersProps> = ({onPick}) => {
                 />
             </Box>
 
+            <SectionHeader
+                icon={<AddIcon sx={{fontSize: 18}}/>}
+                title={t('onboarding.browse.section.custom', {defaultValue: 'Custom'})}
+                accent="custom"
+            />
+            <Box sx={gridSx}>
+                <CustomProviderCard onPick={() => onPick(emptyForm())}/>
+            </Box>
+
             {chinaProviders.length > 0 && (
                 <>
                     <SectionHeader
@@ -355,15 +364,6 @@ const BrowseProviders: React.FC<BrowseProvidersProps> = ({onPick}) => {
                     </Typography>
                 </Box>
             )}
-
-            <SectionHeader
-                icon={<AddIcon sx={{fontSize: 18}}/>}
-                title={t('onboarding.browse.section.custom', {defaultValue: 'Custom'})}
-                accent="custom"
-            />
-            <Box sx={gridSx}>
-                <CustomProviderCard onPick={() => onPick(emptyForm())}/>
-            </Box>
         </Box>
     );
 };
