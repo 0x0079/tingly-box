@@ -1,8 +1,6 @@
 package routing
 
 import (
-	"strings"
-
 	"github.com/sirupsen/logrus"
 
 	"github.com/tingly-dev/tingly-box/internal/loadbalance"
@@ -38,36 +36,38 @@ func (s *SmartRoutingStage) Name() string {
 	return "smart_routing"
 }
 
-const traceSnippetMaxLen = 200
+// requestHeadLen is intentionally small — the per-op trace already records a
+// window around the matched substring (or a small head for non-text ops), so
+// the snapshot only needs to surface enough context to recognize *which*
+// request a row corresponds to. We avoid storing the full message bodies.
+const requestHeadLen = 80
 
-func snippetForLog(s string) string {
-	if len(s) <= traceSnippetMaxLen {
+func requestHead(s string) string {
+	if len(s) <= requestHeadLen {
 		return s
 	}
-	return s[:traceSnippetMaxLen] + "…"
+	return s[:requestHeadLen] + "…"
 }
 
 // requestSnapshot captures key request fields used during smart routing
 // evaluation so operators can correlate decisions with what the request
-// actually looked like.
+// actually looked like. Long message bodies are truncated to a short head;
+// the per-op trace owns the matched-substring windowing so we don't duplicate
+// large payloads in memory.
 func requestSnapshot(reqCtx *smartrouting.RequestContext) map[string]interface{} {
 	if reqCtx == nil {
 		return nil
 	}
-	systemCombined := strings.Join(reqCtx.SystemMessages, "\n")
-	userCombined := strings.Join(reqCtx.UserMessages, "\n")
 	return map[string]interface{}{
-		"model":             reqCtx.Model,
-		"thinking_enabled":  reqCtx.ThinkingEnabled,
-		"latest_role":       reqCtx.LatestRole,
-		"latest_type":       reqCtx.LatestContentType,
-		"estimated_tokens":  reqCtx.EstimatedTokens,
-		"tool_uses":         reqCtx.ToolUses,
-		"system_snippet":    snippetForLog(systemCombined),
-		"latest_user":       snippetForLog(reqCtx.GetLatestUserMessage()),
-		"user_snippet":      snippetForLog(userCombined),
-		"system_msg_count":  len(reqCtx.SystemMessages),
-		"user_msg_count":    len(reqCtx.UserMessages),
+		"model":            reqCtx.Model,
+		"thinking_enabled": reqCtx.ThinkingEnabled,
+		"latest_role":      reqCtx.LatestRole,
+		"latest_type":      reqCtx.LatestContentType,
+		"estimated_tokens": reqCtx.EstimatedTokens,
+		"tool_uses":        reqCtx.ToolUses,
+		"latest_user_head": requestHead(reqCtx.GetLatestUserMessage()),
+		"system_msg_count": len(reqCtx.SystemMessages),
+		"user_msg_count":   len(reqCtx.UserMessages),
 	}
 }
 

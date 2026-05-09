@@ -48,9 +48,7 @@ interface RequestSnapshot {
     latest_type?: string;
     estimated_tokens?: number;
     tool_uses?: string[];
-    system_snippet?: string;
-    latest_user?: string;
-    user_snippet?: string;
+    latest_user_head?: string;
     system_msg_count?: number;
     user_msg_count?: number;
 }
@@ -281,9 +279,7 @@ const SmartRoutingLogViewer = ({ getLogs, clearLogs }: SmartRoutingLogViewerProp
                 {fieldRow('tool_uses', req.tool_uses)}
                 {fieldRow('system_msgs', req.system_msg_count)}
                 {fieldRow('user_msgs', req.user_msg_count)}
-                {req.system_snippet && fieldRow('system_snippet', req.system_snippet)}
-                {req.latest_user && fieldRow('latest_user', req.latest_user)}
-                {req.user_snippet && fieldRow('user_snippet', req.user_snippet)}
+                {req.latest_user_head && fieldRow('latest_user', req.latest_user_head)}
             </Stack>
         );
     };

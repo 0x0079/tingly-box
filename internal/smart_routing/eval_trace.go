@@ -99,18 +99,64 @@ func (r *Router) evaluateRuleVerbose(ctx *RequestContext, rule *SmartRouting) []
 	return results
 }
 
-const traceMaxLen = 200
+// snippetMatchCtx is how many characters of leading/trailing context are kept
+// around a matched substring. Tuned to read like ~one short line on either
+// side (enough for context, but tiny relative to typical chat history).
+const snippetMatchCtx = 80
 
-func truncForTrace(s string) string {
-	if len(s) <= traceMaxLen {
+// snippetHeadLen is the maximum head length kept when there's nothing more
+// specific to point at (e.g. a regex op against a long body). Smaller than
+// snippetAround windows because it carries less diagnostic value.
+const snippetHeadLen = 120
+
+// snippetAround returns a window around the first occurrence of needle inside
+// text, decorated with ellipses on whichever side was trimmed. When needle is
+// empty or not present, it falls back to a head snippet so the trace still
+// shows *some* of the input the rule was evaluated against.
+func snippetAround(text, needle string) string {
+	if text == "" {
+		return ""
+	}
+	if needle == "" {
+		return snippetHead(text, snippetHeadLen)
+	}
+	idx := strings.Index(text, needle)
+	if idx < 0 {
+		return snippetHead(text, snippetHeadLen)
+	}
+	start := idx - snippetMatchCtx
+	if start < 0 {
+		start = 0
+	}
+	end := idx + len(needle) + snippetMatchCtx
+	if end > len(text) {
+		end = len(text)
+	}
+	prefix := ""
+	if start > 0 {
+		prefix = "…"
+	}
+	suffix := ""
+	if end < len(text) {
+		suffix = "…"
+	}
+	return prefix + text[start:end] + suffix
+}
+
+// snippetHead returns the first n chars of s with an ellipsis if truncated.
+func snippetHead(s string, n int) string {
+	if len(s) <= n {
 		return s
 	}
-	return s[:traceMaxLen] + "…"
+	return s[:n] + "…"
 }
 
 // evaluateOpVerbose returns an OpEvalResult while preserving the existing
 // boolean evaluation logic. The reason / actual fields are populated to make
-// the outcome diagnosable from the system log.
+// the outcome diagnosable from the system log. Text-position evaluators set
+// Actual themselves so they can show a window around the matched substring
+// (or a small head when there is no match) rather than a useless prefix of a
+// long message.
 func (r *Router) evaluateOpVerbose(ctx *RequestContext, op *SmartOp) OpEvalResult {
 	res := OpEvalResult{
 		UUID:      op.UUID,
@@ -132,21 +178,21 @@ func (r *Router) evaluateOpVerbose(ctx *RequestContext, op *SmartOp) OpEvalResul
 		res.Reason = reason
 	case PositionContextSystem:
 		combined := ctx.CombineMessages(ctx.SystemMessages)
-		res.Actual = truncForTrace(combined)
-		matched, reason := evalContains(combined, op, "system")
+		matched, reason, actual := evalContains(combined, op, "system")
 		res.Matched = matched
 		res.Reason = reason
+		res.Actual = actual
 	case PositionContextUser:
 		combined := ctx.CombineMessages(ctx.UserMessages)
-		res.Actual = truncForTrace(combined)
-		matched, reason := evalContains(combined, op, "user")
+		matched, reason, actual := evalContains(combined, op, "user")
 		res.Matched = matched
 		res.Reason = reason
+		res.Actual = actual
 	case PositionLatestUser:
 		matched, reason, actual := evalLatestUser(ctx, op)
-		res.Actual = truncForTrace(actual)
 		res.Matched = matched
 		res.Reason = reason
+		res.Actual = actual
 	case PositionToolUse:
 		res.Actual = strings.Join(ctx.ToolUses, ",")
 		matched, reason := evalToolUse(ctx.ToolUses, op)
@@ -233,10 +279,14 @@ func evalThinking(enabled bool, op *SmartOp) (bool, string) {
 	return false, fmt.Sprintf("unsupported thinking op %q", op.Operation)
 }
 
-func evalContains(combined string, op *SmartOp, label string) (bool, string) {
+// evalContains evaluates the system/user "contains" / "regex" ops and returns
+// the matched flag, a human-readable reason, and a compact snippet of the
+// input. For "contains" we return a window around the match (or a short head
+// when there's no match) so the trace stays small even for huge prompts.
+func evalContains(combined string, op *SmartOp, label string) (bool, string, string) {
 	value, err := op.String()
 	if err != nil {
-		return false, fmt.Sprintf("invalid value: %v", err)
+		return false, fmt.Sprintf("invalid value: %v", err), ""
 	}
 	// OpContextSystemContains and OpContextUserContains are distinguished by
 	// position (handled by the caller), but share the same operation string
@@ -244,15 +294,17 @@ func evalContains(combined string, op *SmartOp, label string) (bool, string) {
 	switch string(op.Operation) {
 	case "contains":
 		ok := strings.Contains(combined, value)
-		return ok, fmt.Sprintf("%s context contains %q = %v", label, value, ok)
+		actual := snippetAround(combined, value)
+		return ok, fmt.Sprintf("%s context contains %q = %v", label, value, ok), actual
 	case "regex":
 		ok, err := stringsMatch(combined, value, true)
 		if err != nil {
-			return false, fmt.Sprintf("regex error: %v", err)
+			return false, fmt.Sprintf("regex error: %v", err), snippetHead(combined, snippetHeadLen)
 		}
-		return ok, fmt.Sprintf("%s context matches %q = %v", label, value, ok)
+		// glob/regex doesn't expose match position; fall back to a head snippet.
+		return ok, fmt.Sprintf("%s context matches %q = %v", label, value, ok), snippetHead(combined, snippetHeadLen)
 	}
-	return false, fmt.Sprintf("unsupported %s op %q", label, op.Operation)
+	return false, fmt.Sprintf("unsupported %s op %q", label, op.Operation), snippetHead(combined, snippetHeadLen)
 }
 
 func evalLatestUser(ctx *RequestContext, op *SmartOp) (bool, string, string) {
@@ -262,12 +314,14 @@ func evalLatestUser(ctx *RequestContext, op *SmartOp) (bool, string, string) {
 	}
 	switch op.Operation {
 	case OpLatestUserContains:
-		if ctx.LatestRole != "user" {
-			return false, fmt.Sprintf("latest role is %q, not user", ctx.LatestRole), ctx.GetLatestUserMessage()
-		}
 		latest := ctx.GetLatestUserMessage()
+		if ctx.LatestRole != "user" {
+			return false,
+				fmt.Sprintf("latest role is %q, not user", ctx.LatestRole),
+				snippetHead(latest, snippetHeadLen)
+		}
 		ok := strings.Contains(latest, value)
-		return ok, fmt.Sprintf("latest user contains %q = %v", value, ok), latest
+		return ok, fmt.Sprintf("latest user contains %q = %v", value, ok), snippetAround(latest, value)
 	case OpLatestUserRequestType:
 		ok := ctx.LatestContentType == value
 		return ok, fmt.Sprintf("latest content_type %q == %q = %v", ctx.LatestContentType, value, ok), ctx.LatestContentType
