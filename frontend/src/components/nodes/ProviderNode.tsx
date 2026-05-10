@@ -126,6 +126,7 @@ export const ProviderNode: React.FC<ProviderNodeComponentProps> = ({
                     targetId={provider.provider}
                     targetName={providerInfo.name}
                     model={provider.model}
+                    disabledReason={isOauthProvider ? t('proxy.menu.oauthProbeUnsupported') : undefined}
                 />
             )}
 
@@ -230,12 +231,11 @@ export const ProviderNode: React.FC<ProviderNodeComponentProps> = ({
                 <ActionButtonsBox className="action-buttons">
                     {/* Probe Button */}
                     {provider.provider && providerInfo.exists && (
-                        <Tooltip title={isOauthProvider ? t('proxy.menu.oauthProbeUnsupported') : t('proxy.menu.testProvider')}>
+                        <Tooltip title={t('proxy.menu.testProvider')}>
                             <span>
                                 <IconButton
                                     size="small"
                                     onClick={handleProbeClick}
-                                    disabled={isOauthProvider}
                                     sx={{ p: 0.5, backgroundColor: 'background.paper' }}
                                 >
                                     <PlayIcon sx={{ fontSize: '1rem', color: 'success.main' }} />

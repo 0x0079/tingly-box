@@ -25,6 +25,7 @@ interface ProbeV2MenuProps {
     targetName: string;
     scenario?: string;
     model?: string;
+    disabledReason?: string;
 }
 
 interface ProbeOption {
@@ -64,12 +65,16 @@ export const ProbeV2Menu: React.FC<ProbeV2MenuProps> = ({
     targetName,
     scenario,
     model,
+    disabledReason,
 }) => {
     const { t } = useTranslation();
     const [dialogOpen, setDialogOpen] = useState(false);
     const [selectedMode, setSelectedMode] = useState<ProbeV2TestMode>('simple');
 
     const handleProbeClick = (mode: ProbeV2TestMode) => {
+        if (disabledReason) {
+            return;
+        }
         setSelectedMode(mode);
         setDialogOpen(true);
         onClose();
@@ -108,7 +113,17 @@ export const ProbeV2Menu: React.FC<ProbeV2MenuProps> = ({
                     </Typography>
                 </MenuItem>
                 <Divider />
-                {PROBE_OPTIONS.map((option) => (
+                {disabledReason ? (
+                    <MenuItem disabled>
+                        <ListItemText
+                            primary={disabledReason}
+                            primaryTypographyProps={{
+                                variant: 'body2',
+                                color: 'text.secondary',
+                            }}
+                        />
+                    </MenuItem>
+                ) : PROBE_OPTIONS.map((option) => (
                     <MenuItem
                         key={option.mode}
                         onClick={() => handleProbeClick(option.mode)}
