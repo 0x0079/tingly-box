@@ -71,17 +71,19 @@ func NewAnthropicClient(provider *typ.Provider, model string, sessionID typ.Sess
 
 	// Create HTTP client with session-bound transport
 	var transport http.RoundTripper
-	if provider.AuthType == typ.AuthTypeOAuth || provider.ProxyURL != "" {
+	if provider.AuthType == typ.AuthTypeOAuth {
 		// Use createSessionBoundTransport which applies OAuth hooks and uses shared transport
 		transport = createSessionBoundTransport(provider, sessionID)
 
-		if provider.AuthType == typ.AuthTypeOAuth && provider.OAuthDetail != nil {
+		if provider.OAuthDetail != nil && provider.OAuthDetail.Issuer == ai.IssuerClaudeCode {
 			logrus.Infof("Using session-bound transport for OAuth issuer: %s, session: %s",
 				provider.OAuthDetail.GetIssuer(), sessionID.Value)
 		}
+
 		if provider.ProxyURL != "" {
 			logrus.Infof("Using proxy for Anthropic client: %s", provider.ProxyURL)
 		}
+
 	} else {
 		transport = http.DefaultTransport
 	}
@@ -90,7 +92,7 @@ func NewAnthropicClient(provider *typ.Provider, model string, sessionID typ.Sess
 		Transport: transport,
 	}
 
-	if provider.ProxyURL != "" || provider.AuthType == typ.AuthTypeOAuth {
+	if provider.AuthType == typ.AuthTypeOAuth {
 		options = append(options, anthropicOption.WithHTTPClient(httpClient))
 	}
 

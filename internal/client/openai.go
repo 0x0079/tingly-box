@@ -79,7 +79,7 @@ func NewOpenAIClient(provider *typ.Provider, model string, sessionID typ.Session
 
 	// Create HTTP client with session-bound transport
 	var transport http.RoundTripper
-	if provider.AuthType == typ.AuthTypeOAuth || provider.ProxyURL != "" {
+	if provider.AuthType == typ.AuthTypeOAuth {
 		// Use createSessionBoundTransport which applies OAuth hooks and uses shared transport
 		transport = createSessionBoundTransport(provider, sessionID)
 		issuer := ai.IssuerUnknown
@@ -90,7 +90,9 @@ func NewOpenAIClient(provider *typ.Provider, model string, sessionID typ.Session
 			logrus.Infof("[Codex] Using session-bound transport for ChatGPT backend API path rewriting, session: %s", sessionID.Value)
 		} else if issuer != "" {
 			logrus.Infof("Using session-bound transport for OAuth issuer: %s, session: %s", issuer, sessionID.Value)
-		} else if provider.ProxyURL != "" {
+		}
+
+		if provider.ProxyURL != "" {
 			logrus.Infof("Using proxy for OpenAI client: %s", provider.ProxyURL)
 		}
 	} else {
