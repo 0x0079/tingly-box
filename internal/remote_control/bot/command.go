@@ -747,8 +747,7 @@ func newResumeCommand(adapter BotHandlerAdapter) imbot.Command {
 			// /resume: list recent sessions for the bound project.
 			sessions, err := adapter.ListResumableSessions(projectPath, resumeListLimit)
 			if err != nil {
-				return sendCommandTextf(adapter, ctx,
-					"Failed to list sessions: %v\n\nTip: ensure ClaudeProjectsDir is configured.", err)
+				return sendCommandTextf(adapter, ctx, "Failed to list sessions: %v", err)
 			}
 			if len(sessions) == 0 {
 				return sendCommandText(adapter, ctx, fmt.Sprintf(
