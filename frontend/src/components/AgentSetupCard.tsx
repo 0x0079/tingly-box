@@ -262,9 +262,8 @@ const AgentSetupCard: React.FC<AgentSetupCardProps> = ({
             }
         >
             <Collapse in={!collapsed} unmountOnExit={false}>
-                <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} alignItems="flex-start">
-                    <Box sx={{ width: { xs: '100%', md: 220 }, flexShrink: 0 }}>
-                        <Stepper activeStep={stepCursor} orientation="vertical">
+                <Stack spacing={2.5}>
+                    <Stepper activeStep={stepCursor} alternativeLabel>
                             <Step completed={providerDone}>
                                 <StepLabel optional={isStepSkipped(0) ? <Typography variant="caption">Skipped</Typography> : undefined}>{STEP_LABELS[0]}</StepLabel>
                             </Step>
@@ -277,10 +276,9 @@ const AgentSetupCard: React.FC<AgentSetupCardProps> = ({
                             <Step completed={applyDone}>
                                 <StepLabel optional={isStepSkipped(3) ? <Typography variant="caption">Skipped</Typography> : undefined}>{STEP_LABELS[3]}</StepLabel>
                             </Step>
-                        </Stepper>
-                    </Box>
+                    </Stepper>
 
-                    <Stack spacing={2} sx={{ flex: 1, width: '100%', minHeight: 360, justifyContent: 'space-between' }}>
+                    <Stack spacing={2} sx={{ width: '100%', minHeight: 320, justifyContent: 'space-between', border: 1, borderColor: 'divider', borderRadius: 2, p: 2 }}>
                         <Box sx={{ flex: 1 }}>
                         {stepCursor === 0 && (
                         <Stack direction="row" spacing={1.5} alignItems="flex-start">
