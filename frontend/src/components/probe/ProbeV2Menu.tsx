@@ -25,33 +25,34 @@ interface ProbeV2MenuProps {
     targetName: string;
     scenario?: string;
     model?: string;
+    disabledReason?: string;
 }
 
 interface ProbeOption {
     mode: ProbeV2TestMode;
-    label: string;
+    labelKey: string;
+    descriptionKey: string;
     icon: React.ReactNode;
-    description: string;
 }
 
 const PROBE_OPTIONS: ProbeOption[] = [
     {
         mode: 'simple',
-        label: 'Direct Test',
+        labelKey: 'probe.menu.options.simple.label',
         icon: <DirectIcon fontSize="small" />,
-        description: 'Send a simple non-streaming request',
+        descriptionKey: 'probe.menu.options.simple.description',
     },
     {
         mode: 'streaming',
-        label: 'Streaming Test',
+        labelKey: 'probe.menu.options.streaming.label',
         icon: <StreamingIcon fontSize="small" />,
-        description: 'Stream the response in real-time',
+        descriptionKey: 'probe.menu.options.streaming.description',
     },
     {
         mode: 'tool',
-        label: 'Tool Calling',
+        labelKey: 'probe.menu.options.tool.label',
         icon: <ToolIcon fontSize="small" />,
-        description: 'Test with tool calling enabled',
+        descriptionKey: 'probe.menu.options.tool.description',
     },
 ];
 
@@ -64,12 +65,16 @@ export const ProbeV2Menu: React.FC<ProbeV2MenuProps> = ({
     targetName,
     scenario,
     model,
+    disabledReason,
 }) => {
     const { t } = useTranslation();
     const [dialogOpen, setDialogOpen] = useState(false);
     const [selectedMode, setSelectedMode] = useState<ProbeV2TestMode>('simple');
 
     const handleProbeClick = (mode: ProbeV2TestMode) => {
+        if (disabledReason) {
+            return;
+        }
         setSelectedMode(mode);
         setDialogOpen(true);
         onClose();
@@ -82,11 +87,11 @@ export const ProbeV2Menu: React.FC<ProbeV2MenuProps> = ({
     const getTargetTypeLabel = () => {
         switch (targetType) {
             case 'provider':
-                return 'Provider';
+                return t('probe.menu.target.provider');
             case 'rule':
-                return 'Rule';
+                return t('probe.menu.target.rule');
             default:
-                return 'Target';
+                return t('probe.menu.target.default');
         }
     };
 
@@ -104,11 +109,21 @@ export const ProbeV2Menu: React.FC<ProbeV2MenuProps> = ({
             >
                 <MenuItem disabled sx={{ opacity: 1 }}>
                     <Typography variant="subtitle2" color="text.secondary">
-                        Test {getTargetTypeLabel()}
+                        {t('probe.menu.title', { target: getTargetTypeLabel() })}
                     </Typography>
                 </MenuItem>
                 <Divider />
-                {PROBE_OPTIONS.map((option) => (
+                {disabledReason ? (
+                    <MenuItem disabled>
+                        <ListItemText
+                            primary={disabledReason}
+                            primaryTypographyProps={{
+                                variant: 'body2',
+                                color: 'text.secondary',
+                            }}
+                        />
+                    </MenuItem>
+                ) : PROBE_OPTIONS.map((option) => (
                     <MenuItem
                         key={option.mode}
                         onClick={() => handleProbeClick(option.mode)}
@@ -117,8 +132,8 @@ export const ProbeV2Menu: React.FC<ProbeV2MenuProps> = ({
                             {option.icon}
                         </ListItemIcon>
                         <ListItemText
-                            primary={option.label}
-                            secondary={option.description}
+                            primary={t(option.labelKey)}
+                            secondary={t(option.descriptionKey)}
                             secondaryTypographyProps={{
                                 variant: 'caption',
                                 sx: { fontSize: '0.75rem' }

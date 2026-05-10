@@ -342,7 +342,9 @@ export default {
     "menu": {
       "refreshModels": "Refresh Models",
       "deleteProvider": "Delete Provider",
-      "deleteSmartRule": "Delete Smart Rule"
+      "deleteSmartRule": "Delete Smart Rule",
+      "testProvider": "Test Provider",
+      "oauthProbeUnsupported": "OAuth does not support test yet"
     },
     "tooltips": {
       "addProviderFirst": "Add a provider to enable request forwarding",
@@ -378,6 +380,30 @@ export default {
       "noOperation": "No Operation",
       "noValue": "No value",
       "deleteTooltip": "Delete smart rule"
+    }
+  },
+  "probe": {
+    "menu": {
+      "title": "Test {{target}}",
+      "target": {
+        "provider": "Provider",
+        "rule": "Rule",
+        "default": "Target"
+      },
+      "options": {
+        "simple": {
+          "label": "Direct Test",
+          "description": "Send a simple non-streaming request"
+        },
+        "streaming": {
+          "label": "Streaming Test",
+          "description": "Stream the response in real-time"
+        },
+        "tool": {
+          "label": "Tool Calling",
+          "description": "Test with tool calling enabled"
+        }
+      }
     }
   },
   "system": {

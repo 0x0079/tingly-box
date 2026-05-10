@@ -342,7 +342,9 @@ export default {
     "menu": {
       "refreshModels": "刷新模型",
       "deleteProvider": "删除提供商",
-      "deleteSmartRule": "删除智能规则"
+      "deleteSmartRule": "删除智能规则",
+      "testProvider": "测试提供商",
+      "oauthProbeUnsupported": "OAuth 暂不支持 Test"
     },
     "tooltips": {
       "addProviderFirst": "添加提供商以启用请求转发",
@@ -378,6 +380,30 @@ export default {
       "noOperation": "无操作",
       "noValue": "无值",
       "deleteTooltip": "删除智能规则"
+    }
+  },
+  "probe": {
+    "menu": {
+      "title": "测试{{target}}",
+      "target": {
+        "provider": "提供商",
+        "rule": "规则",
+        "default": "目标"
+      },
+      "options": {
+        "simple": {
+          "label": "直接测试",
+          "description": "发送一个简单的非流式请求"
+        },
+        "streaming": {
+          "label": "流式测试",
+          "description": "实时流式返回响应"
+        },
+        "tool": {
+          "label": "工具调用",
+          "description": "在启用工具调用时进行测试"
+        }
+      }
     }
   },
   "system": {

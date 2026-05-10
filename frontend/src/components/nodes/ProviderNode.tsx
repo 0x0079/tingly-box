@@ -13,6 +13,7 @@ import {
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Provider } from '@/types/provider.ts';
 import { useFeatureFlags } from '@/contexts/FeatureFlagsContext';
 import { ApiStyleBadge } from '../ApiStyleBadge.tsx';
@@ -69,6 +70,7 @@ export const ProviderNode: React.FC<ProviderNodeComponentProps> = ({
     onNodeClick
 }) => {
     const { enableFusion } = useFeatureFlags();
+    const { t } = useTranslation();
     const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
     const [probeAnchorEl, setProbeAnchorEl] = useState<null | HTMLElement>(null);
     const menuOpen = Boolean(menuAnchorEl);
@@ -76,6 +78,7 @@ export const ProviderNode: React.FC<ProviderNodeComponentProps> = ({
 
     const providerInfo = getProviderInfo(provider.provider, providersData);
     const isProviderMissing = provider.provider && !providerInfo.exists;
+    const isOauthProvider = providerInfo.provider?.auth_type === 'oauth';
 
     const handleMenuClick = (event: React.MouseEvent<HTMLElement>) => {
         event.stopPropagation();
@@ -93,6 +96,9 @@ export const ProviderNode: React.FC<ProviderNodeComponentProps> = ({
 
     const handleProbeClick = (event: React.MouseEvent<HTMLElement>) => {
         event.stopPropagation();
+        if (isOauthProvider) {
+            return;
+        }
         setProbeAnchorEl(event.currentTarget);
     };
 
@@ -120,6 +126,7 @@ export const ProviderNode: React.FC<ProviderNodeComponentProps> = ({
                     targetId={provider.provider}
                     targetName={providerInfo.name}
                     model={provider.model}
+                    disabledReason={isOauthProvider ? t('proxy.menu.oauthProbeUnsupported') : undefined}
                 />
             )}
 
@@ -224,14 +231,16 @@ export const ProviderNode: React.FC<ProviderNodeComponentProps> = ({
                 <ActionButtonsBox className="action-buttons">
                     {/* Probe Button */}
                     {provider.provider && providerInfo.exists && (
-                        <Tooltip title="Test Provider">
-                            <IconButton
-                                size="small"
-                                onClick={handleProbeClick}
-                                sx={{ p: 0.5, backgroundColor: 'background.paper' }}
-                            >
-                                <PlayIcon sx={{ fontSize: '1rem', color: 'success.main' }} />
-                            </IconButton>
+                        <Tooltip title={t('proxy.menu.testProvider')}>
+                            <span>
+                                <IconButton
+                                    size="small"
+                                    onClick={handleProbeClick}
+                                    sx={{ p: 0.5, backgroundColor: 'background.paper' }}
+                                >
+                                    <PlayIcon sx={{ fontSize: '1rem', color: 'success.main' }} />
+                                </IconButton>
+                            </span>
                         </Tooltip>
                     )}
                     {/* Delete Button */}
