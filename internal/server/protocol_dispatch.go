@@ -644,7 +644,9 @@ func (s *Server) dispatchOpenAIChat(
 	if seg, ok := mcp.PopOpenAIContinuationSegment(typ.GetSessionID(c.Request.Context()), provider.UUID); ok {
 		req.Messages = append(append([]openai.ChatCompletionMessageParamUnion{}, seg...), req.Messages...)
 	}
-	transform.AlignToolMessagesForOpenAI(req)
+	// AlignToolMessagesForOpenAI is already performed by ConsistencyTransform
+	// in the transform chain (normalizeMessages -> alignToolMessages), which
+	// runs before dispatchOpenAIChat for all TypeOpenAIChat targets.
 	request.CleanupOpenaiFields(req)
 
 	if isStreaming {
