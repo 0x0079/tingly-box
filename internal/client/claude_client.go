@@ -8,6 +8,7 @@ import (
 	"github.com/anthropics/anthropic-sdk-go"
 	anthropicOption "github.com/anthropics/anthropic-sdk-go/option"
 	anthropicstream "github.com/anthropics/anthropic-sdk-go/packages/ssestream"
+	"github.com/sirupsen/logrus"
 	"github.com/tingly-dev/tingly-box/internal/obs"
 	"github.com/tingly-dev/tingly-box/internal/protocol"
 	"github.com/tingly-dev/tingly-box/internal/protocol/transform/ops"
@@ -30,6 +31,7 @@ type ClaudeClient struct {
 // It builds an Anthropic SDK client with Claude Code specific headers and middleware,
 // then wraps it in an AnthropicClient for delegation.
 func NewClaudeClient(provider *typ.Provider, model string, sessionID typ.SessionID) (*ClaudeClient, error) {
+	logrus.Debug("creating claude-client")
 
 	// Handle API base URL - Anthropic SDK expects base without /v1
 	apiBase := strings.TrimRight(provider.APIBase, "/")
@@ -138,6 +140,8 @@ func (c *ClaudeClient) Guard(ctx context.Context, req *anthropic.MessageNewParam
 		panic("invalid metadata")
 	}
 	options := append(c.AnthropicClient.Client().Options, anthropicOption.WithHeader("X-Claude-Code-Session-Id", meta.SessionID))
+	logrus.Debugf("session: %s", meta.SessionID)
+	logrus.Debugf("metadata: %s", req.Metadata.UserID)
 
 	// Create SDK client
 	anthropicClient := anthropic.NewClient(options...)
@@ -165,6 +169,8 @@ func (c *ClaudeClient) GuardBeta(ctx context.Context, req *anthropic.BetaMessage
 		panic("invalid metadata")
 	}
 	options := append(c.AnthropicClient.Client().Options, anthropicOption.WithHeader("X-Claude-Code-Session-Id", meta.SessionID))
+	logrus.Debugf("session: %s", meta.SessionID)
+	logrus.Debugf("metadata: %s", req.Metadata.UserID)
 
 	// Create SDK client
 	anthropicClient := anthropic.NewClient(options...)
