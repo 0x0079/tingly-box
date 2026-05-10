@@ -382,6 +382,30 @@ export default {
       "deleteTooltip": "Delete smart rule"
     }
   },
+  "probe": {
+    "menu": {
+      "title": "Test {{target}}",
+      "target": {
+        "provider": "Provider",
+        "rule": "Rule",
+        "default": "Target"
+      },
+      "options": {
+        "simple": {
+          "label": "Direct Test",
+          "description": "Send a simple non-streaming request"
+        },
+        "streaming": {
+          "label": "Streaming Test",
+          "description": "Stream the response in real-time"
+        },
+        "tool": {
+          "label": "Tool Calling",
+          "description": "Test with tool calling enabled"
+        }
+      }
+    }
+  },
   "system": {
     "pageTitle": "Server Status",
     "status": {

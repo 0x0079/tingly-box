@@ -382,6 +382,30 @@ export default {
       "deleteTooltip": "删除智能规则"
     }
   },
+  "probe": {
+    "menu": {
+      "title": "测试{{target}}",
+      "target": {
+        "provider": "提供商",
+        "rule": "规则",
+        "default": "目标"
+      },
+      "options": {
+        "simple": {
+          "label": "直接测试",
+          "description": "发送一个简单的非流式请求"
+        },
+        "streaming": {
+          "label": "流式测试",
+          "description": "实时流式返回响应"
+        },
+        "tool": {
+          "label": "工具调用",
+          "description": "在启用工具调用时进行测试"
+        }
+      }
+    }
+  },
   "system": {
     "pageTitle": "服务器状态",
     "status": {
