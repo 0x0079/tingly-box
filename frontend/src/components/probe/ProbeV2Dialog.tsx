@@ -26,6 +26,7 @@ import {
     Build as ToolIcon,
     ContentCopy as CopyIcon,
     Refresh as RefreshIcon,
+    VpnKey as OAuthIcon,
 } from '@mui/icons-material';
 import { useTheme } from '@mui/material/styles';
 import type { ProbeV2TestMode, ProbeV2TargetType } from '@/types/probe-v2.ts';
@@ -50,19 +51,28 @@ const TEST_MODE_LABELS: Record<ProbeV2TestMode, string> = {
     simple: 'Direct Request',
     streaming: 'Streaming Request',
     tool: 'Tool Calling',
+    oauth: 'OAuth Probe',
 };
 
 const TEST_MODE_ICONS: Record<ProbeV2TestMode, React.ReactElement> = {
     simple: <SpeedIcon fontSize="small" />,
     streaming: <SpeedIcon fontSize="small" />,
     tool: <ToolIcon fontSize="small" />,
+    oauth: <OAuthIcon fontSize="small" />,
 };
+
+// 'oauth' is a frontend-only mode; the backend treats it as a streaming probe
+// using the provider's OAuth credentials.
+const toBackendTestMode = (mode: ProbeV2TestMode): 'simple' | 'streaming' | 'tool' =>
+    mode === 'oauth' ? 'streaming' : mode;
 
 // Preset messages
 const getDefaultMessage = (mode: ProbeV2TestMode): string => {
     switch (mode) {
         case 'tool':
             return 'Please use the add_numbers tool to calculate 123 + 456.';
+        case 'oauth':
+            return 'Hi, please reply with a short greeting to confirm OAuth access.';
         default:
             return 'Hello, this is a test message. Please respond with a short greeting.';
     }
@@ -346,7 +356,7 @@ export const ProbeV2Dialog: React.FC<ProbeV2DialogProps> = ({
                 provider_uuid: targetId,
                 model: model || '',
             }),
-            test_mode: testMode,
+            test_mode: toBackendTestMode(testMode),
             message: getDefaultMessage(testMode),
         };
 

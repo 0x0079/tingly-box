@@ -15,7 +15,7 @@ import { styled } from '@mui/material/styles';
 import React, { useState } from 'react';
 import type { Provider } from '@/types/provider.ts';
 import { ApiStyleBadge } from '../ApiStyleBadge.tsx';
-import { ProbeV2Menu } from '../probe';
+import { ProbeV2Dialog, ProbeV2Menu } from '../probe';
 import type { ConfigProvider } from '../RoutingGraphTypes.ts';
 import { ProviderNodeContainer, NODE_LAYER_STYLES } from './styles.tsx';
 import ProviderNodeContent from './ProviderNodeContent.tsx';
@@ -69,11 +69,13 @@ export const ProviderNode: React.FC<ProviderNodeComponentProps> = ({
 }) => {
     const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
     const [probeAnchorEl, setProbeAnchorEl] = useState<null | HTMLElement>(null);
+    const [oauthProbeOpen, setOAuthProbeOpen] = useState(false);
     const menuOpen = Boolean(menuAnchorEl);
     const probeMenuOpen = Boolean(probeAnchorEl);
 
     const providerInfo = getProviderInfo(provider.provider, providersData);
     const isProviderMissing = provider.provider && !providerInfo.exists;
+    const isOAuthProvider = providerInfo.provider?.auth_type === 'oauth';
 
     const handleMenuClick = (event: React.MouseEvent<HTMLElement>) => {
         event.stopPropagation();
@@ -91,11 +93,19 @@ export const ProviderNode: React.FC<ProviderNodeComponentProps> = ({
 
     const handleProbeClick = (event: React.MouseEvent<HTMLElement>) => {
         event.stopPropagation();
+        if (isOAuthProvider) {
+            setOAuthProbeOpen(true);
+            return;
+        }
         setProbeAnchorEl(event.currentTarget);
     };
 
     const handleProbeClose = () => {
         setProbeAnchorEl(null);
+    };
+
+    const handleOAuthProbeClose = () => {
+        setOAuthProbeOpen(false);
     };
 
     return (
@@ -108,8 +118,9 @@ export const ProviderNode: React.FC<ProviderNodeComponentProps> = ({
                 onDelete={handleDelete}
             />
 
-            {/* Probe Menu */}
-            {provider.provider && providerInfo.exists && (
+            {/* Probe entry: OAuth providers go straight to a dedicated dialog,
+                others get the multi-mode menu (simple/streaming/tool). */}
+            {provider.provider && providerInfo.exists && !isOAuthProvider && (
                 <ProbeV2Menu
                     anchorEl={probeAnchorEl}
                     open={probeMenuOpen}
@@ -118,6 +129,17 @@ export const ProviderNode: React.FC<ProviderNodeComponentProps> = ({
                     targetId={provider.provider}
                     targetName={providerInfo.name}
                     model={provider.model}
+                />
+            )}
+            {provider.provider && providerInfo.exists && isOAuthProvider && (
+                <ProbeV2Dialog
+                    open={oauthProbeOpen}
+                    onClose={handleOAuthProbeClose}
+                    targetType="provider"
+                    targetId={provider.provider}
+                    targetName={providerInfo.name}
+                    model={provider.model}
+                    testMode="oauth"
                 />
             )}
 
