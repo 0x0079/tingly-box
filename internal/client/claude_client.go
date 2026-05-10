@@ -47,7 +47,7 @@ func NewClaudeClient(provider *typ.Provider, model string, sessionID typ.Session
 	isOAuthToken := IsClaudeOAuthToken(provider.GetAccessToken())
 
 	// Apply Claude Code specific headers
-	applyClaudeCodeHeaders(&options, provider, sessionID.Value, isOAuthToken)
+	options = applyClaudeCodeHeaders(options, provider, sessionID.Value, isOAuthToken)
 
 	// Add beta query parameter
 	options = append(options, anthropicOption.WithQuery("beta", "true"))
@@ -65,7 +65,7 @@ func NewClaudeClient(provider *typ.Provider, model string, sessionID typ.Session
 }
 
 // applyClaudeCodeHeaders applies Claude Code specific headers via SDK options.
-func applyClaudeCodeHeaders(options *[]anthropicOption.RequestOption, provider *typ.Provider, sessionID string, isOAuthToken bool) {
+func applyClaudeCodeHeaders(options []anthropicOption.RequestOption, provider *typ.Provider, sessionID string, isOAuthToken bool) []anthropicOption.RequestOption {
 	// Build beta header with all required flags
 	baseBetas := anthropicBeta
 
@@ -85,13 +85,13 @@ func applyClaudeCodeHeaders(options *[]anthropicOption.RequestOption, provider *
 
 	// Auth header
 	if isOAuthToken {
-		*options = append(*options, anthropicOption.WithHeader("Authorization", "Bearer "+provider.GetAccessToken()))
+		options = append(options, anthropicOption.WithHeader("Authorization", "Bearer "+provider.GetAccessToken()))
 	} else {
-		*options = append(*options, anthropicOption.WithHeader("x-api-key", provider.GetAccessToken()))
+		options = append(options, anthropicOption.WithHeader("x-api-key", provider.GetAccessToken()))
 	}
 
 	// Claude Code specific headers
-	*options = append(*options,
+	options = append(options,
 		anthropicOption.WithHeader("accept", acceptHeader),
 		anthropicOption.WithHeader("anthropic-beta", baseBetas),
 		anthropicOption.WithHeader("anthropic-dangerous-direct-browser-access", anthropicDangerousDirectBrowserAccess),
@@ -108,6 +108,8 @@ func applyClaudeCodeHeaders(options *[]anthropicOption.RequestOption, provider *
 		anthropicOption.WithHeader("x-stainless-os", stainlessOS()),
 		anthropicOption.WithHeader("x-stainless-timeout", stainlessTimeout),
 	)
+
+	return options
 }
 
 // ===================================================================
