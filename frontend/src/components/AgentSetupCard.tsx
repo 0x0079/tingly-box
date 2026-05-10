@@ -48,6 +48,7 @@ const COLLAPSED_KEY = (agentKey: string) => `setup-card-collapsed-${agentKey}`;
 const INSTALL_DONE_KEY = (agentKey: string) => `setup-card-step2-done-${agentKey}`;
 const APPLY_DONE_KEY = (agentKey: string) => `setup-card-step3-done-${agentKey}`;
 const TOTAL_STEPS = 4;
+const STEP_LABELS = ['Provider', 'Model', 'Install', 'Apply'] as const;
 
 /** True iff at least one rule has a service with both a non-empty provider and model. */
 export const hasModelOnAnyRule = (rules: any[] | null | undefined): boolean =>
@@ -112,6 +113,31 @@ const AgentSetupCard: React.FC<AgentSetupCardProps> = ({
     const allDone = providerDone && modelDone && installDone && applyDone;
     const doneCount = [providerDone, modelDone, installDone, applyDone].filter(Boolean).length;
     const activeStep = !providerDone ? 0 : !modelDone ? 1 : !installDone ? 2 : !applyDone ? 3 : 3;
+    const [stepCursor, setStepCursor] = useState(activeStep);
+    const [skipped, setSkipped] = useState<Set<number>>(new Set());
+
+    useEffect(() => {
+        setStepCursor(prev => (prev < activeStep ? activeStep : prev));
+    }, [activeStep]);
+
+    const isStepSkipped = (step: number) => skipped.has(step);
+    const handleNext = () => {
+        const nextSkipped = new Set(skipped);
+        nextSkipped.delete(stepCursor);
+        setSkipped(nextSkipped);
+        setStepCursor(prev => Math.min(prev + 1, TOTAL_STEPS - 1));
+    };
+    const handleBack = () => setStepCursor(prev => Math.max(prev - 1, 0));
+    const handleSkip = () => {
+        const nextSkipped = new Set(skipped);
+        nextSkipped.add(stepCursor);
+        setSkipped(nextSkipped);
+        setStepCursor(prev => Math.min(prev + 1, TOTAL_STEPS - 1));
+    };
+    const handleReset = () => {
+        setStepCursor(activeStep);
+        setSkipped(new Set());
+    };
 
     // Auto-collapse on first visit when every step is already complete, but only
     // when the user hasn't expressed a preference. We wait for providerLoading
@@ -216,22 +242,22 @@ const AgentSetupCard: React.FC<AgentSetupCardProps> = ({
         >
             <Collapse in={!collapsed} unmountOnExit={false}>
                 <Stack spacing={2}>
-                    <Stepper activeStep={activeStep} alternativeLabel sx={{ px: 1 }}>
+                    <Stepper activeStep={stepCursor} alternativeLabel sx={{ px: 1 }}>
                         <Step completed={providerDone}>
-                            <StepLabel>Provider</StepLabel>
+                            <StepLabel optional={isStepSkipped(0) ? <Typography variant="caption">Skipped</Typography> : undefined}>{STEP_LABELS[0]}</StepLabel>
                         </Step>
                         <Step completed={modelDone}>
-                            <StepLabel>Model</StepLabel>
+                            <StepLabel optional={isStepSkipped(1) ? <Typography variant="caption">Skipped</Typography> : undefined}>{STEP_LABELS[1]}</StepLabel>
                         </Step>
                         <Step completed={installDone}>
-                            <StepLabel>Install</StepLabel>
+                            <StepLabel optional={isStepSkipped(2) ? <Typography variant="caption">Skipped</Typography> : undefined}>{STEP_LABELS[2]}</StepLabel>
                         </Step>
                         <Step completed={applyDone}>
-                            <StepLabel>Apply</StepLabel>
+                            <StepLabel optional={isStepSkipped(3) ? <Typography variant="caption">Skipped</Typography> : undefined}>{STEP_LABELS[3]}</StepLabel>
                         </Step>
                     </Stepper>
 
-                    {activeStep === 0 && (
+                    {stepCursor === 0 && (
                     <Stack direction="row" spacing={1.5} alignItems="flex-start">
                         {providerLoading ? <CircularProgress size={20} sx={{ mt: 0.2, flexShrink: 0 }} /> : null}
                         <Box sx={{ flex: 1 }}>
@@ -265,7 +291,7 @@ const AgentSetupCard: React.FC<AgentSetupCardProps> = ({
 
                     )}
 
-                    {activeStep === 1 && (
+                    {stepCursor === 1 && (
                     <Stack direction="row" spacing={1.5} alignItems="flex-start">
                         <Box sx={{ flex: 1 }}>
                             <Typography
@@ -302,7 +328,7 @@ const AgentSetupCard: React.FC<AgentSetupCardProps> = ({
 
                     )}
 
-                    {activeStep === 2 && (
+                    {stepCursor === 2 && (
                     <Stack direction="row" spacing={1.5} alignItems="flex-start">
                         <Box sx={{ flex: 1 }}>
                             <Typography
@@ -398,7 +424,7 @@ const AgentSetupCard: React.FC<AgentSetupCardProps> = ({
 
                     )}
 
-                    {activeStep === 3 && (
+                    {stepCursor === 3 && (
                     <Stack direction="row" spacing={1.5} alignItems="flex-start">
                         <Box sx={{ flex: 1 }}>
                             <Typography
@@ -476,6 +502,23 @@ const AgentSetupCard: React.FC<AgentSetupCardProps> = ({
                         </Box>
                     </Stack>
                     )}
+
+                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                        <Button size="small" onClick={handleReset} disabled={stepCursor === activeStep && skipped.size === 0}>
+                            Reset
+                        </Button>
+                        <Stack direction="row" spacing={1}>
+                            <Button size="small" onClick={handleBack} disabled={stepCursor === 0}>
+                                Back
+                            </Button>
+                            <Button size="small" onClick={handleSkip} disabled={stepCursor >= TOTAL_STEPS - 1}>
+                                Skip
+                            </Button>
+                            <Button size="small" variant="contained" onClick={handleNext} disabled={stepCursor >= TOTAL_STEPS - 1}>
+                                Next
+                            </Button>
+                        </Stack>
+                    </Stack>
                 </Stack>
             </Collapse>
         </UnifiedCard>
