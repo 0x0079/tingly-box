@@ -227,6 +227,9 @@ export default {
     "protocol": {
       "label": "Protocol"
     },
+    "fusion": {
+      "createCheckbox": "Create as Fusion Provider (single combined provider)"
+    },
     "keyName": {
       "label": "API Key Name",
       "placeholder": "e.g., OpenAI API Key",

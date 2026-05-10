@@ -227,6 +227,9 @@ export default {
     "protocol": {
       "label": "协议"
     },
+    "fusion": {
+      "createCheckbox": "创建为融合 Provider（单条组合 Provider）"
+    },
     "keyName": {
       "label": "API 密钥名称",
       "placeholder": "例如：OpenAI API Key",

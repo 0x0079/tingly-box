@@ -45,6 +45,7 @@ export interface EnhancedProviderFormData {
     // inbound protocol natively. When only one is set, falls back to apiBase.
     apiBaseOpenAI?: string;
     apiBaseAnthropic?: string;
+    createFusionProvider?: boolean;
 }
 
 interface PresetProviderFormDialogProps {
@@ -117,6 +118,7 @@ const ProviderFormDialog = ({
     const [providerInputValue, setProviderInputValue] = useState('');
     const [useGlobalProxy, setUseGlobalProxy] = useState(false);
     const [globalProxyUrl, setGlobalProxyUrl] = useState('');
+    const [createFusionProvider, setCreateFusionProvider] = useState(false);
 
     const {enableFusion} = useFeatureFlags();
 
@@ -192,6 +194,10 @@ const ProviderFormDialog = ({
     useEffect(() => {
         setNoApiKey(data.noKeyRequired || false);
     }, [data.noKeyRequired]);
+
+    useEffect(() => {
+        setCreateFusionProvider(!!data.createFusionProvider);
+    }, [data.createFusionProvider]);
 
     // Fetch global proxy URL once on mount
     useEffect(() => {
@@ -295,6 +301,7 @@ const ProviderFormDialog = ({
                 // on. With the flag OFF, picking both protocols falls through
                 // to the legacy two-record split handled by the parent submit.
                 const fusion = enableFusionRef.current
+                    && createFusionProvider
                     && nextOpenAI && nextAnthropic
                     && !!provider.baseUrlOpenAI && !!provider.baseUrlAnthropic;
 
@@ -323,7 +330,7 @@ const ProviderFormDialog = ({
                 cb('apiBaseAnthropic', '');
             }
         },
-        []
+        [createFusionProvider]
     );
 
     const handleUseGlobalProxyChange = (checked: boolean) => {
@@ -742,6 +749,24 @@ const ProviderFormDialog = ({
                                 </Box>
                             </Stack>
                         </FormControl>
+                        {enableFusion && mode === 'add' && protocolOpenAI && protocolAnthropic && (
+                            <FormControlLabel
+                                control={
+                                    <Checkbox
+                                        size="small"
+                                        checked={createFusionProvider}
+                                        onChange={(e) => {
+                                            const checked = e.target.checked;
+                                            setCreateFusionProvider(checked);
+                                            onChange('createFusionProvider', checked);
+                                            syncProtocolsToParent(protocolOpenAI, protocolAnthropic, selectedProvider);
+                                            setVerificationResult(null);
+                                        }}
+                                    />
+                                }
+                                label={t('providerDialog.fusion.createCheckbox')}
+                            />
+                        )}
 
                         <Box>
                             <TextField
