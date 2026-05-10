@@ -238,7 +238,7 @@ const AgentSetupCard: React.FC<AgentSetupCardProps> = ({
             title={
                 <Stack direction="row" alignItems="center" spacing={1} sx={{ flex: 1 }}>
                     <Typography variant="subtitle1" fontWeight={600}>
-                        Quick Setup
+                        Guiding
                     </Typography>
                     <Chip
                         label={progressLabel}
@@ -280,7 +280,7 @@ const AgentSetupCard: React.FC<AgentSetupCardProps> = ({
                     </Stepper>
                     </Box>
 
-                    <Stack spacing={1.5} sx={{ width: '100%', minHeight: 200, justifyContent: 'space-between', border: 1, borderColor: 'divider', borderRadius: 2, p: 1.5 }}>
+                    <Stack spacing={1.5} sx={{ width: '100%', minHeight: 160, justifyContent: 'space-between', border: 1, borderColor: 'divider', borderRadius: 2, p: 1.5 }}>
                         <Box sx={{ flex: 1 }}>
                         {stepCursor === 0 && (
                         <Stack direction="row" spacing={1.5} alignItems="flex-start">
