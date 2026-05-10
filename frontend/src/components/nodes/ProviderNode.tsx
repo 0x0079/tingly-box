@@ -13,6 +13,7 @@ import {
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Provider } from '@/types/provider.ts';
 import { useFeatureFlags } from '@/contexts/FeatureFlagsContext';
 import { ApiStyleBadge } from '../ApiStyleBadge.tsx';
@@ -69,6 +70,7 @@ export const ProviderNode: React.FC<ProviderNodeComponentProps> = ({
     onNodeClick
 }) => {
     const { enableFusion } = useFeatureFlags();
+    const { t } = useTranslation();
     const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
     const [probeAnchorEl, setProbeAnchorEl] = useState<null | HTMLElement>(null);
     const menuOpen = Boolean(menuAnchorEl);
@@ -228,7 +230,7 @@ export const ProviderNode: React.FC<ProviderNodeComponentProps> = ({
                 <ActionButtonsBox className="action-buttons">
                     {/* Probe Button */}
                     {provider.provider && providerInfo.exists && (
-                        <Tooltip title={isOauthProvider ? 'OAuth 暂不支持 Test' : 'Test Provider'}>
+                        <Tooltip title={isOauthProvider ? t('proxy.menu.oauthProbeUnsupported') : t('proxy.menu.testProvider')}>
                             <span>
                                 <IconButton
                                     size="small"

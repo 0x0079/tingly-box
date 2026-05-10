@@ -342,7 +342,9 @@ export default {
     "menu": {
       "refreshModels": "刷新模型",
       "deleteProvider": "删除提供商",
-      "deleteSmartRule": "删除智能规则"
+      "deleteSmartRule": "删除智能规则",
+      "testProvider": "测试提供商",
+      "oauthProbeUnsupported": "OAuth 暂不支持 Test"
     },
     "tooltips": {
       "addProviderFirst": "添加提供商以启用请求转发",

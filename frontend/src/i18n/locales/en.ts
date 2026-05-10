@@ -342,7 +342,9 @@ export default {
     "menu": {
       "refreshModels": "Refresh Models",
       "deleteProvider": "Delete Provider",
-      "deleteSmartRule": "Delete Smart Rule"
+      "deleteSmartRule": "Delete Smart Rule",
+      "testProvider": "Test Provider",
+      "oauthProbeUnsupported": "OAuth does not support test yet"
     },
     "tooltips": {
       "addProviderFirst": "Add a provider to enable request forwarding",
