@@ -280,7 +280,7 @@ const AgentSetupCard: React.FC<AgentSetupCardProps> = ({
                     </Stepper>
                     </Box>
 
-                    <Stack spacing={2} sx={{ width: '100%', minHeight: 320, justifyContent: 'space-between', border: 1, borderColor: 'divider', borderRadius: 2, p: 2 }}>
+                    <Stack spacing={1.5} sx={{ width: '100%', minHeight: 260, justifyContent: 'space-between', border: 1, borderColor: 'divider', borderRadius: 2, p: 1.5 }}>
                         <Box sx={{ flex: 1 }}>
                         {stepCursor === 0 && (
                         <Stack direction="row" spacing={1.5} alignItems="flex-start">
@@ -345,7 +345,7 @@ const AgentSetupCard: React.FC<AgentSetupCardProps> = ({
                             direction="row"
                             justifyContent="space-between"
                             alignItems="center"
-                            sx={{ pt: 1.5, borderTop: 1, borderColor: 'divider' }}
+                            sx={{ pt: 1, borderTop: 1, borderColor: 'divider' }}
                         >
                             <Button size="small" onClick={handleReset} disabled={stepCursor === 0 && !installDone && !applyDone && skipped.size === 0}>Reset</Button>
                             <Stack direction="row" spacing={1}>
