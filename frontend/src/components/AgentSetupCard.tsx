@@ -130,6 +130,8 @@ const AgentSetupCard: React.FC<AgentSetupCardProps> = ({
             setInstallDone(true);
         }
         if (stepCursor >= TOTAL_STEPS - 1) {
+            localStorage.setItem(APPLY_DONE_KEY(agentKey), 'true');
+            setApplyDone(true);
             setCollapsed(true);
             localStorage.setItem(COLLAPSED_KEY(agentKey), 'true');
             return;
@@ -141,7 +143,13 @@ const AgentSetupCard: React.FC<AgentSetupCardProps> = ({
         const nextSkipped = new Set(skipped);
         nextSkipped.add(stepCursor);
         setSkipped(nextSkipped);
+        if (stepCursor === 2) {
+            localStorage.setItem(INSTALL_DONE_KEY(agentKey), 'true');
+            setInstallDone(true);
+        }
         if (stepCursor >= TOTAL_STEPS - 1) {
+            localStorage.setItem(APPLY_DONE_KEY(agentKey), 'true');
+            setApplyDone(true);
             setCollapsed(true);
             localStorage.setItem(COLLAPSED_KEY(agentKey), 'true');
             return;
