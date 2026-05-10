@@ -57,11 +57,6 @@ func NewClaudeClient(provider *typ.Provider, model string, sessionID typ.Session
 	// Add beta query parameter
 	options = append(options, anthropicOption.WithQuery("beta", "true"))
 
-	// Add Claude Code middleware for body transformations
-	options = append(options, anthropicOption.WithMiddleware(
-		claudeCodeMiddleware(isOAuthToken),
-	))
-
 	// Create SDK client
 	anthropicClient := anthropic.NewClient(options...)
 
@@ -118,59 +113,6 @@ func applyClaudeCodeHeaders(options *[]anthropicOption.RequestOption, provider *
 		anthropicOption.WithHeader("x-stainless-os", stainlessOS()),
 		anthropicOption.WithHeader("x-stainless-timeout", stainlessTimeout),
 	)
-}
-
-// claudeCodeMiddleware is SDK middleware that handles Claude Code OAuth transformations.
-// It blocks the /models endpoint, applies tool prefix to requests, and strips it from responses.
-func claudeCodeMiddleware(isOAuthToken bool) anthropicOption.Middleware {
-	return func(req *http.Request, next anthropicOption.MiddlewareNext) (*http.Response, error) {
-		// 1. Block /models endpoint for Claude Code OAuth (by design)
-		if req.URL != nil && strings.HasSuffix(req.URL.Path, "/models") && req.Method == http.MethodGet {
-			return &http.Response{
-				StatusCode: http.StatusNotFound,
-				Status:     http.StatusText(http.StatusNotFound),
-				Header:     make(http.Header),
-				Body:       io.NopCloser(bytes.NewReader([]byte(`{"error":{"type":"not_found_error","message":"models endpoint is not supported for Claude Code"}}`))),
-			}, nil
-		}
-
-		var originalBody []byte
-
-		// 2. Read and modify request body if needed (for OAuth tokens)
-		if req.Body != nil && isOAuthToken {
-			var err error
-			originalBody, err = io.ReadAll(req.Body)
-			_ = req.Body.Close()
-			if err != nil {
-				logrus.WithError(err).Errorf("error reading body")
-				return nil, fmt.Errorf("failed to read request body: %w", err)
-			}
-
-			modifiedBody := originalBody
-
-			// Apply thinking modification
-			modifiedBody = applyThinking(modifiedBody)
-
-			// Trim capacity to length to avoid excessive memory usage
-			modifiedBody = append([]byte(nil), modifiedBody...)
-
-			// Set modified body back
-			req.Body = io.NopCloser(bytes.NewReader(modifiedBody))
-			req.ContentLength = int64(len(modifiedBody))
-			req.GetBody = func() (io.ReadCloser, error) {
-				return io.NopCloser(bytes.NewReader(modifiedBody)), nil
-			}
-		}
-
-		// 3. Execute request
-		resp, err := next(req)
-		if err != nil {
-			logrus.WithError(err).Errorf("failed to round trip request: %v", err)
-			return nil, err
-		}
-
-		return resp, nil
-	}
 }
 
 // ===================================================================
