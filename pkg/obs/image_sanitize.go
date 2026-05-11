@@ -3,6 +3,7 @@ package obs
 import (
 	"fmt"
 	"regexp"
+	"strings"
 )
 
 // dataURLImageRe matches base64 image data URLs commonly embedded in
@@ -25,7 +26,10 @@ var dataURLImageRe = regexp.MustCompile(`data:image/([a-zA-Z0-9.+-]+);base64,([^
 //
 // Returns the sanitized body and the number of bytes saved.
 func SanitizeBase64Images(body string) (string, int) {
-	if len(body) == 0 {
+	// Skip the regex scan for the common case (no inline images). A
+	// substring search is ~free compared to the full regex over a multi-MB
+	// JSON request.
+	if !strings.Contains(body, "data:image/") {
 		return body, 0
 	}
 	saved := 0

@@ -532,3 +532,41 @@ func TestMiddleware_RequestBodyCircularEviction(t *testing.T) {
 	thirdBody := store.Get(bodyRefs[2])
 	assert.NotNil(t, thirdBody, "Expected third body to exist")
 }
+
+// TestMiddleware_PropagatesStreamStoreAndBodyRef verifies that downstream
+// handlers see both context keys and that the body_ref published on the
+// log entry matches what the handler observed — this is the contract
+// scenario_recording.go relies on to attach SSE events to the same id.
+func TestMiddleware_PropagatesStreamStoreAndBodyRef(t *testing.T) {
+	middleware, _ := setupTestMiddleware()
+	streamStore := obs.NewStreamEventStore(1024 * 1024)
+	middleware.SetStreamEventStore(streamStore)
+
+	var seenBodyRef string
+	var seenStore *obs.StreamEventStore
+
+	engine := gin.New()
+	engine.Use(middleware.Middleware())
+	engine.POST("/x", func(c *gin.Context) {
+		_, _ = io.ReadAll(c.Request.Body)
+		if v, ok := c.Get(CtxKeyBodyRef); ok {
+			seenBodyRef, _ = v.(string)
+		}
+		if v, ok := c.Get(CtxKeyStreamEventStore); ok {
+			seenStore, _ = v.(*obs.StreamEventStore)
+		}
+		c.String(http.StatusOK, "ok")
+	})
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/x", io.NopCloser(bytes.NewBufferString(`{"k":"v"}`)))
+	engine.ServeHTTP(w, req)
+
+	assert.NotEmpty(t, seenBodyRef, "handler should see body_ref in ctx")
+	assert.Same(t, streamStore, seenStore, "handler should see the same StreamEventStore")
+
+	entries := middleware.GetEntries()
+	assert.NotEmpty(t, entries)
+	logged, _ := entries[len(entries)-1].Data["body_ref"].(string)
+	assert.Equal(t, seenBodyRef, logged, "log entry body_ref must match ctx body_ref")
+}

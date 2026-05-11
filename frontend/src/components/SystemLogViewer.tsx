@@ -54,7 +54,7 @@ export interface StreamRecord {
 
 interface SystemLogViewerProps {
     getLogs: (params?: { limit?: number; level?: string; since?: string }) => Promise<SystemLogsResponse>;
-    getRequestBody?: (bodyRef: string) => Promise<{ id: string; method: string; path: string; body: string; truncated: boolean } | null>;
+    getRequestBody?: (bodyRef: string) => Promise<{ id: string; method: string; path: string; body: string } | null>;
     getStreamEvents?: (bodyRef: string) => Promise<StreamRecord | null>;
     pathPrefix?: string;
 }
@@ -73,8 +73,7 @@ const SystemLogViewer = ({ getLogs, getRequestBody, getStreamEvents, pathPrefix 
 
     // Request body dialog state
     const [bodyDialogOpen, setBodyDialogOpen] = useState(false);
-    const [selectedBodyRef, setSelectedBodyRef] = useState<string | null>(null);
-    const [requestBody, setRequestBody] = useState<{ id: string; method: string; path: string; body: string; truncated: boolean } | null>(null);
+    const [requestBody, setRequestBody] = useState<{ id: string; method: string; path: string; body: string } | null>(null);
     const [loadingBody, setLoadingBody] = useState(false);
     const [bodyError, setBodyError] = useState<string | null>(null);
 
@@ -113,7 +112,6 @@ const SystemLogViewer = ({ getLogs, getRequestBody, getStreamEvents, pathPrefix 
     };
 
     const openRequestBodyDialog = async (bodyRef: string) => {
-        setSelectedBodyRef(bodyRef);
         setBodyDialogOpen(true);
         setRequestBody(null);
         setBodyError(null);
@@ -141,7 +139,6 @@ const SystemLogViewer = ({ getLogs, getRequestBody, getStreamEvents, pathPrefix 
 
     const closeRequestBodyDialog = () => {
         setBodyDialogOpen(false);
-        setSelectedBodyRef(null);
         setRequestBody(null);
         setBodyError(null);
     };
@@ -188,15 +185,6 @@ const SystemLogViewer = ({ getLogs, getRequestBody, getStreamEvents, pathPrefix 
             next.add(index);
         }
         setExpandedEvents(next);
-    };
-
-    const formatEventData = (data: any): string => {
-        if (typeof data === 'string') return data;
-        try {
-            return JSON.stringify(data, null, 2);
-        } catch {
-            return String(data);
-        }
     };
 
     const toggleLevel = (level: string) => {
@@ -282,12 +270,18 @@ const SystemLogViewer = ({ getLogs, getRequestBody, getStreamEvents, pathPrefix 
         });
     }, [logs]);
 
-    const formatRequestBody = (body: string): string => {
+    const formatJSON = (value: unknown): string => {
+        if (typeof value === 'string') {
+            try {
+                return JSON.stringify(JSON.parse(value), null, 2);
+            } catch {
+                return value;
+            }
+        }
         try {
-            const parsed = JSON.parse(body);
-            return JSON.stringify(parsed, null, 2);
+            return JSON.stringify(value, null, 2);
         } catch {
-            return body;
+            return String(value);
         }
     };
 
@@ -544,17 +538,7 @@ const SystemLogViewer = ({ getLogs, getRequestBody, getStreamEvents, pathPrefix 
             >
                 <DialogTitle>
                     <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
-                        <Stack direction="row" spacing={1} alignItems="center">
-                            <Typography variant="h6">Request Body</Typography>
-                            {requestBody?.truncated && (
-                                <Chip
-                                    label="Truncated"
-                                    size="small"
-                                    color="warning"
-                                    sx={{ fontSize: '0.7rem', height: 20 }}
-                                />
-                            )}
-                        </Stack>
+                        <Typography variant="h6">Request Body</Typography>
                         <IconButton onClick={closeRequestBodyDialog} size="small">
                             <CloseIcon />
                         </IconButton>
@@ -579,18 +563,11 @@ const SystemLogViewer = ({ getLogs, getRequestBody, getStreamEvents, pathPrefix 
                                     <Typography variant="body2">{requestBody.path}</Typography>
                                 </Box>
                             </Stack>
-                            {requestBody.truncated && (
-                                <Alert severity="warning" sx={{ py: 0.5 }}>
-                                    <Typography variant="caption">
-                                        Request body was truncated to 1MB. Original size was larger.
-                                    </Typography>
-                                </Alert>
-                            )}
                             <TextField
                                 fullWidth
                                 multiline
                                 rows={15}
-                                value={formatRequestBody(requestBody.body)}
+                                value={formatJSON(requestBody.body)}
                                 InputProps={{
                                     readOnly: true,
                                     sx: {
@@ -693,7 +670,7 @@ const SystemLogViewer = ({ getLogs, getRequestBody, getStreamEvents, pathPrefix 
                                                 <TextField
                                                     fullWidth
                                                     multiline
-                                                    value={formatEventData(evt.data)}
+                                                    value={formatJSON(evt.data)}
                                                     InputProps={{
                                                         readOnly: true,
                                                         sx: {

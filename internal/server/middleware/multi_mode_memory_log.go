@@ -12,26 +12,17 @@ import (
 	"github.com/tingly-dev/tingly-box/pkg/obs"
 )
 
-// Request body storage configuration.
-//
-// The memory budget is split between two stores:
-//   - RequestBodyStore: 32MiB, holds raw request bodies
-//   - StreamEventStore: 32MiB, holds raw response stream events (set up
-//     in server initialization, not here)
-//
-// 64MiB total is the working memory ceiling for the debug capture path.
+// Debug-capture memory budget. MaxRequestBodyBytes is the hard limit;
+// MaxRequestBodies only bounds map overhead in many-tiny-requests cases.
+// The 32MiB request budget is paired with a 32MiB StreamEventStore
+// budget (configured in server init) for a 64MiB total ceiling.
 const (
-	// MaxRequestBodies is a soft cap on the number of bodies retained.
-	// The byte budget is the hard constraint; this exists only to bound
-	// per-id map overhead in pathological "many tiny requests" cases.
-	MaxRequestBodies = 200
-	// MaxRequestBodyBytes is the total byte budget for retained bodies.
+	MaxRequestBodies          = 200
 	MaxRequestBodyBytes int64 = 32 * 1024 * 1024
 )
 
-// Gin context keys used to share state with downstream handlers and
-// recorders (e.g. scenario_recording.go's streamRecorder reads them to
-// attach stream events to the same body_ref the HTTP log emitted).
+// Gin context keys used by scenario_recording.go to attach stream events
+// to the same body_ref this middleware emits.
 const (
 	CtxKeyBodyRef          = "body_ref"
 	CtxKeyStreamEventStore = "stream_event_store"
@@ -77,9 +68,6 @@ func NewMultiModeMemoryLogMiddleware(multiLogger *obs.MultiLogger) *MultiModeMem
 	}
 }
 
-// SetStreamEventStore wires an external stream-event store so the
-// middleware can publish it to the gin context for downstream recorders.
-// It is set up at server initialization (one store per server).
 func (m *MultiModeMemoryLogMiddleware) SetStreamEventStore(s *obs.StreamEventStore) {
 	if m == nil {
 		return
@@ -87,7 +75,6 @@ func (m *MultiModeMemoryLogMiddleware) SetStreamEventStore(s *obs.StreamEventSto
 	m.streamEventStore = s
 }
 
-// GetStreamEventStore returns the stream event store (may be nil).
 func (m *MultiModeMemoryLogMiddleware) GetStreamEventStore() *obs.StreamEventStore {
 	if m == nil {
 		return nil
@@ -103,22 +90,18 @@ func (m *MultiModeMemoryLogMiddleware) Middleware() gin.HandlerFunc {
 		path := c.Request.URL.Path
 		raw := c.Request.URL.RawQuery
 
-		// Capture request body using TeeReader. We always store it (per
-		// the debug-capture design — the original request must survive
-		// to be inspected when something goes wrong). The byte budget on
-		// RequestBodyStore is what bounds memory, not a status-gate.
+		// Tee the request body so the handler still sees it; the body
+		// is committed to the store after c.Next() once it has been
+		// fully read.
 		var bodyBuffer *bytes.Buffer
 		var bodyRef string
 		if m.requestBodyStore != nil && c.Request.Body != nil && c.Request.Method != "GET" && c.Request.Method != "HEAD" {
 			bodyBuffer = &bytes.Buffer{}
-			teeReader := io.TeeReader(c.Request.Body, bodyBuffer)
-			c.Request.Body = io.NopCloser(teeReader)
+			c.Request.Body = io.NopCloser(io.TeeReader(c.Request.Body, bodyBuffer))
 		}
 
-		// Wrap response writer to capture body for error responses. We
-		// keep an upper bound here so a runaway non-streaming response
-		// can't OOM us; streaming responses are recorded separately via
-		// the StreamEventStore wired into scenario_recording.go.
+		// Bound non-streaming response capture; SSE goes through
+		// StreamEventStore instead and bypasses this buffer.
 		w := &responseBodyWriter{
 			ResponseWriter: c.Writer,
 			body:           &bytes.Buffer{},
@@ -126,17 +109,12 @@ func (m *MultiModeMemoryLogMiddleware) Middleware() gin.HandlerFunc {
 		}
 		c.Writer = w
 
-		// Publish the stream event store reference for downstream
-		// recorders. The body_ref is assigned post-read below; recorders
-		// fall back to that lookup at the end of the request.
 		if m.streamEventStore != nil {
 			c.Set(CtxKeyStreamEventStore, m.streamEventStore)
 		}
 
-		// Pre-assign a body_ref before the handler runs so streaming
-		// recorders can attach events to it as they arrive. The actual
-		// body content is stored after c.Next() once it has been fully
-		// read by the handler via the TeeReader.
+		// Pre-assign body_ref so streaming recorders can attach events
+		// to it before c.Next() returns.
 		if m.requestBodyStore != nil && bodyBuffer != nil {
 			bodyRef = m.requestBodyStore.ReserveID()
 			c.Set(CtxKeyBodyRef, bodyRef)
@@ -189,11 +167,8 @@ func (m *MultiModeMemoryLogMiddleware) Middleware() gin.HandlerFunc {
 			"user_agent": c.Request.UserAgent(),
 		}
 
-		// Always store the request body (subject to the byte budget on
-		// RequestBodyStore). The original payload is essential for
-		// debugging request transforms and provider errors; relying on a
-		// 4xx/5xx gate misses the cases where a request was malformed at
-		// a higher layer or where streaming responses fail mid-flight.
+		// Always store the request body. Gating on 4xx/5xx misses
+		// streaming responses that fail mid-flight after a 200 header.
 		if bodyBuffer != nil && bodyRef != "" && bodyBuffer.Len() > 0 {
 			body := bodyBuffer.String()
 			if m.sanitizeImages {

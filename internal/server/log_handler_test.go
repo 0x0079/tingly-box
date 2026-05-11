@@ -67,7 +67,6 @@ func TestGetRequestBody_Success(t *testing.T) {
 	assert.Equal(t, "POST", resp.Method)
 	assert.Equal(t, "/v1/chat/completions", resp.Path)
 	assert.Equal(t, testBody, resp.Body)
-	assert.False(t, resp.Truncated)
 }
 
 func TestGetRequestBody_NotFound(t *testing.T) {
@@ -124,7 +123,6 @@ func TestGetRequestBody_LargeBodyPreserved(t *testing.T) {
 	var resp RequestBodyResponse
 	err := json.Unmarshal(w.Body.Bytes(), &resp)
 	assert.NoError(t, err)
-	assert.False(t, resp.Truncated)
 	assert.Equal(t, len(longBody), len(resp.Body))
 }
 

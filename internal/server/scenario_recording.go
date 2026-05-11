@@ -81,13 +81,29 @@ type ScenarioRecorder struct {
 	streamChunks      []map[string]interface{} // Collected stream chunks
 	isStreaming       bool                     // Whether this is a streaming response
 	assembledResponse map[string]interface{}   // Assembled response from stream
+
+	// Resolved once at EnableStreaming so per-event publish avoids
+	// repeated gin.Context map lookups on the hot path.
+	streamStore *pkgobs.StreamEventStore
+	streamID    string
 }
 
 // EnableStreaming enables streaming mode for this recorder
 func (sr *ScenarioRecorder) EnableStreaming() {
-	if sr != nil {
-		sr.isStreaming = true
-		sr.streamChunks = make([]map[string]interface{}, 0)
+	if sr == nil {
+		return
+	}
+	sr.isStreaming = true
+	sr.streamChunks = make([]map[string]interface{}, 0)
+	if sr.c != nil {
+		if v, ok := sr.c.Get(middleware.CtxKeyStreamEventStore); ok {
+			if s, ok := v.(*pkgobs.StreamEventStore); ok {
+				sr.streamStore = s
+			}
+		}
+		if v, ok := sr.c.Get(middleware.CtxKeyBodyRef); ok {
+			sr.streamID, _ = v.(string)
+		}
 	}
 }
 
@@ -132,62 +148,18 @@ func (sr *ScenarioRecorder) RecordStreamChunk(eventType string, chunk interface{
 
 	sr.streamChunks = append(sr.streamChunks, chunkData)
 
-	// Publish to the in-memory StreamEventStore so the same bytes can be
-	// retrieved by /api/v1/log/stream/:body_ref. This is the debugging
-	// path — separate from the scenario sink which writes to disk.
-	sr.publishStreamEvent(eventType, pkgobs.StreamKindClient, chunkJSON)
+	// Mirror to the StreamEventStore (queryable via /api/v1/log/stream/:id)
+	// using the (store, id) pair cached at EnableStreaming.
+	if sr.streamStore != nil && sr.streamID != "" {
+		sr.streamStore.Append(sr.streamID, pkgobs.StreamKindClient, eventType, chunkJSON)
+	}
 }
 
-// closeStreamCapture marks the in-memory stream record as finished. It
-// pairs with publishStreamEvent so the debug API can render a "complete"
-// vs "in-flight" indicator.
 func (sr *ScenarioRecorder) closeStreamCapture() {
-	if sr == nil || sr.c == nil {
+	if sr == nil || sr.streamStore == nil || sr.streamID == "" {
 		return
 	}
-	storeAny, ok := sr.c.Get(middleware.CtxKeyStreamEventStore)
-	if !ok {
-		return
-	}
-	store, ok := storeAny.(*pkgobs.StreamEventStore)
-	if !ok || store == nil {
-		return
-	}
-	idAny, ok := sr.c.Get(middleware.CtxKeyBodyRef)
-	if !ok {
-		return
-	}
-	id, _ := idAny.(string)
-	if id == "" {
-		return
-	}
-	store.Close(id)
-}
-
-// publishStreamEvent looks up the StreamEventStore + body_ref from the
-// gin.Context (both are set by the multi-mode memory log middleware) and
-// appends the raw event bytes. No-op when either is missing.
-func (sr *ScenarioRecorder) publishStreamEvent(eventType, kind string, data []byte) {
-	if sr == nil || sr.c == nil {
-		return
-	}
-	storeAny, ok := sr.c.Get(middleware.CtxKeyStreamEventStore)
-	if !ok {
-		return
-	}
-	store, ok := storeAny.(*pkgobs.StreamEventStore)
-	if !ok || store == nil {
-		return
-	}
-	idAny, ok := sr.c.Get(middleware.CtxKeyBodyRef)
-	if !ok {
-		return
-	}
-	id, _ := idAny.(string)
-	if id == "" {
-		return
-	}
-	store.Append(id, kind, eventType, data)
+	sr.streamStore.Close(sr.streamID)
 }
 
 // SetAssembledResponse sets the assembled response for streaming
