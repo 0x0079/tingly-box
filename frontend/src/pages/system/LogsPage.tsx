@@ -185,6 +185,23 @@ const LogsPage = () => {
         return await response.json();
     }, []);
 
+    const getStreamEvents = useCallback(async (bodyRef: string) => {
+        const response = await fetch(`/api/v1/log/stream/${bodyRef}`, {
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('user_auth_token') || ''}`,
+            },
+        });
+
+        if (!response.ok) {
+            if (response.status === 404) {
+                return null;
+            }
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        return await response.json();
+    }, []);
+
     return (
         <UnifiedCard
             title="Logs"
@@ -225,6 +242,7 @@ const LogsPage = () => {
                     <SystemLogViewer
                         getLogs={getLogs}
                         getRequestBody={getRequestBody}
+                        getStreamEvents={getStreamEvents}
                         pathPrefix="/tingly/"
                     />
                 </TabPanel>
@@ -233,6 +251,7 @@ const LogsPage = () => {
                     <SystemLogViewer
                         getLogs={getLogs}
                         getRequestBody={getRequestBody}
+                        getStreamEvents={getStreamEvents}
                     />
                 </TabPanel>
 

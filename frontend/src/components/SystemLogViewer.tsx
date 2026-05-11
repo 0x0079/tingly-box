@@ -37,15 +37,31 @@ export interface SystemLogsResponse {
     logs: SystemLogEntry[];
 }
 
+export interface StreamEventEntry {
+    ts: string;
+    type: string;
+    kind: string;
+    data: any;
+}
+
+export interface StreamRecord {
+    id: string;
+    start_time: string;
+    closed: boolean;
+    total: number;
+    events: StreamEventEntry[];
+}
+
 interface SystemLogViewerProps {
     getLogs: (params?: { limit?: number; level?: string; since?: string }) => Promise<SystemLogsResponse>;
     getRequestBody?: (bodyRef: string) => Promise<{ id: string; method: string; path: string; body: string; truncated: boolean } | null>;
+    getStreamEvents?: (bodyRef: string) => Promise<StreamRecord | null>;
     pathPrefix?: string;
 }
 
 const LOG_LEVELS = ['debug', 'info', 'warn', 'error', 'fatal', 'panic'];
 
-const SystemLogViewer = ({ getLogs, getRequestBody, pathPrefix }: SystemLogViewerProps) => {
+const SystemLogViewer = ({ getLogs, getRequestBody, getStreamEvents, pathPrefix }: SystemLogViewerProps) => {
     const [logs, setLogs] = useState<SystemLogEntry[]>([]);
     const [allLogs, setAllLogs] = useState<SystemLogEntry[]>([]);
     const [loading, setLoading] = useState(false);
@@ -61,6 +77,13 @@ const SystemLogViewer = ({ getLogs, getRequestBody, pathPrefix }: SystemLogViewe
     const [requestBody, setRequestBody] = useState<{ id: string; method: string; path: string; body: string; truncated: boolean } | null>(null);
     const [loadingBody, setLoadingBody] = useState(false);
     const [bodyError, setBodyError] = useState<string | null>(null);
+
+    // Stream events dialog state
+    const [streamDialogOpen, setStreamDialogOpen] = useState(false);
+    const [streamRecord, setStreamRecord] = useState<StreamRecord | null>(null);
+    const [loadingStream, setLoadingStream] = useState(false);
+    const [streamError, setStreamError] = useState<string | null>(null);
+    const [expandedEvents, setExpandedEvents] = useState<Set<number>>(new Set());
 
     const loadLogs = async () => {
         setLoading(true);
@@ -121,6 +144,59 @@ const SystemLogViewer = ({ getLogs, getRequestBody, pathPrefix }: SystemLogViewe
         setSelectedBodyRef(null);
         setRequestBody(null);
         setBodyError(null);
+    };
+
+    const openStreamDialog = async (bodyRef: string) => {
+        setStreamDialogOpen(true);
+        setStreamRecord(null);
+        setStreamError(null);
+        setExpandedEvents(new Set());
+        setLoadingStream(true);
+
+        if (!getStreamEvents) {
+            setStreamError('Stream event viewing not available');
+            setLoadingStream(false);
+            return;
+        }
+
+        try {
+            const result = await getStreamEvents(bodyRef);
+            if (result) {
+                setStreamRecord(result);
+            } else {
+                setStreamError('Stream events not found (may have been evicted, or the request was not streaming)');
+            }
+        } catch (error: any) {
+            setStreamError(error instanceof Error ? error.message : 'Failed to load stream events');
+        } finally {
+            setLoadingStream(false);
+        }
+    };
+
+    const closeStreamDialog = () => {
+        setStreamDialogOpen(false);
+        setStreamRecord(null);
+        setStreamError(null);
+        setExpandedEvents(new Set());
+    };
+
+    const toggleEvent = (index: number) => {
+        const next = new Set(expandedEvents);
+        if (next.has(index)) {
+            next.delete(index);
+        } else {
+            next.add(index);
+        }
+        setExpandedEvents(next);
+    };
+
+    const formatEventData = (data: any): string => {
+        if (typeof data === 'string') return data;
+        try {
+            return JSON.stringify(data, null, 2);
+        } catch {
+            return String(data);
+        }
     };
 
     const toggleLevel = (level: string) => {
@@ -420,6 +496,19 @@ const SystemLogViewer = ({ getLogs, getRequestBody, pathPrefix }: SystemLogViewe
                                                                                 >
                                                                                     View Request Body
                                                                                 </Button>
+                                                                                {getStreamEvents && (
+                                                                                    <Button
+                                                                                        size="small"
+                                                                                        variant="outlined"
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            openStreamDialog(String(value));
+                                                                                        }}
+                                                                                        sx={{ fontSize: '0.7rem', py: 0.25, px: 1 }}
+                                                                                    >
+                                                                                        View Stream
+                                                                                    </Button>
+                                                                                )}
                                                                             </Stack>
                                                                         ) : (
                                                                             <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
@@ -521,6 +610,115 @@ const SystemLogViewer = ({ getLogs, getRequestBody, pathPrefix }: SystemLogViewe
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={closeRequestBodyDialog}>Close</Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Stream Events Dialog */}
+            <Dialog
+                open={streamDialogOpen}
+                onClose={closeStreamDialog}
+                maxWidth="md"
+                fullWidth
+            >
+                <DialogTitle>
+                    <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+                        <Stack direction="row" spacing={1} alignItems="center">
+                            <Typography variant="h6">Stream Events</Typography>
+                            {streamRecord && (
+                                <Chip
+                                    label={streamRecord.closed ? 'Closed' : 'In-flight'}
+                                    size="small"
+                                    color={streamRecord.closed ? 'default' : 'info'}
+                                    sx={{ fontSize: '0.7rem', height: 20 }}
+                                />
+                            )}
+                            {streamRecord && (
+                                <Typography variant="caption" color="text.secondary">
+                                    {streamRecord.total} events
+                                </Typography>
+                            )}
+                        </Stack>
+                        <IconButton onClick={closeStreamDialog} size="small">
+                            <CloseIcon />
+                        </IconButton>
+                    </Stack>
+                </DialogTitle>
+                <DialogContent dividers>
+                    {loadingStream && <Typography color="text.secondary">Loading...</Typography>}
+                    {streamError && <Typography color="error">{streamError}</Typography>}
+                    {streamRecord && streamRecord.events.length === 0 && !loadingStream && (
+                        <Typography color="text.secondary">No events captured for this request.</Typography>
+                    )}
+                    {streamRecord && streamRecord.events.length > 0 && (
+                        <Stack spacing={0.5}>
+                            {streamRecord.events.map((evt, idx) => {
+                                const expanded = expandedEvents.has(idx);
+                                return (
+                                    <Box
+                                        key={idx}
+                                        sx={{
+                                            border: '1px solid',
+                                            borderColor: 'divider',
+                                            borderRadius: 0.5,
+                                        }}
+                                    >
+                                        <Stack
+                                            direction="row"
+                                            spacing={1}
+                                            alignItems="center"
+                                            sx={{ px: 1, py: 0.5, cursor: 'pointer' }}
+                                            onClick={() => toggleEvent(idx)}
+                                        >
+                                            <IconButton size="small" sx={{ p: 0.25 }}>
+                                                {expanded ? <KeyboardArrowUpIcon fontSize="small" /> : <KeyboardArrowDownIcon fontSize="small" />}
+                                            </IconButton>
+                                            <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace', minWidth: 32 }}>
+                                                #{idx}
+                                            </Typography>
+                                            <Chip
+                                                label={evt.kind}
+                                                size="small"
+                                                color={evt.kind === 'provider' ? 'primary' : 'default'}
+                                                sx={{ fontSize: '0.65rem', height: 18 }}
+                                            />
+                                            <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.75rem', flex: 1 }}>
+                                                {evt.type}
+                                            </Typography>
+                                            <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
+                                                {formatTimestamp(evt.ts)}
+                                            </Typography>
+                                        </Stack>
+                                        <Collapse in={expanded}>
+                                            <Box sx={{ px: 1, pb: 1 }}>
+                                                <TextField
+                                                    fullWidth
+                                                    multiline
+                                                    value={formatEventData(evt.data)}
+                                                    InputProps={{
+                                                        readOnly: true,
+                                                        sx: {
+                                                            fontFamily: 'monospace',
+                                                            fontSize: '0.7rem',
+                                                            backgroundColor: 'action.hover',
+                                                        },
+                                                    }}
+                                                    sx={{
+                                                        '& .MuiInputBase-input': {
+                                                            whiteSpace: 'pre-wrap',
+                                                            wordBreak: 'break-word',
+                                                        },
+                                                    }}
+                                                />
+                                            </Box>
+                                        </Collapse>
+                                    </Box>
+                                );
+                            })}
+                        </Stack>
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={closeStreamDialog}>Close</Button>
                 </DialogActions>
             </Dialog>
         </Stack>
