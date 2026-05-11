@@ -1030,7 +1030,11 @@ func TestApplyCodexConfig_Idempotent(t *testing.T) {
 	_ = first
 }
 
-func TestApplyCodexConfig_ProfileKeyCollisionWithUserProfile(t *testing.T) {
+// When the sanitized profile key already exists, we overwrite. Backups
+// (restored via `agent restore codex`) are the safety net — extra collision
+// logic isn't worth the complexity for users who have explicitly opted in to
+// tingly-box managing their codex config.
+func TestApplyCodexConfig_OverwritesCollidingProfile(t *testing.T) {
 	tempDir := t.TempDir()
 	t.Setenv("HOME", tempDir)
 
@@ -1038,10 +1042,8 @@ func TestApplyCodexConfig_ProfileKeyCollisionWithUserProfile(t *testing.T) {
 	if err := os.MkdirAll(codexDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	// User has a profile literally named "tingly-codex" pointing at someone
-	// else. We must not overwrite it.
 	existing := `[profiles.tingly-codex]
-model = "user-private-model"
+model = "stale-value"
 model_provider = "openai"
 `
 	if err := os.WriteFile(filepath.Join(codexDir, "config.toml"), []byte(existing), 0o644); err != nil {
@@ -1054,15 +1056,12 @@ model_provider = "openai"
 
 	cfg := loadCodexConfigForTest(t, filepath.Join(codexDir, "config.toml"))
 	profiles, _ := cfg["profiles"].(map[string]interface{})
-
-	user, _ := profiles["tingly-codex"].(map[string]interface{})
-	if user["model"] != "user-private-model" {
-		t.Errorf("user's profiles.tingly-codex was clobbered: %#v", user)
+	ours, _ := profiles["tingly-codex"].(map[string]interface{})
+	if ours["model"] != "tingly-codex" || ours["model_provider"] != "tingly-box" {
+		t.Errorf("expected colliding profile overwritten with tingly values, got %#v", ours)
 	}
-	// Our profile lives under a suffixed key
-	ours, _ := profiles["tingly-codex-1"].(map[string]interface{})
-	if ours == nil || ours["model"] != "tingly-codex" || ours["model_provider"] != "tingly-box" {
-		t.Errorf("expected suffixed profile to be written, got profiles=%#v", profiles)
+	if _, suffixed := profiles["tingly-codex-1"]; suffixed {
+		t.Errorf("did not expect suffixed key; profiles=%#v", profiles)
 	}
 }
 

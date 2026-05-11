@@ -890,10 +890,9 @@ func ApplyOpenCodeConfig(payload map[string]interface{}) (*ApplyResult, error) {
 //     `model_supports_reasoning_summaries = true`,
 //     `model_reasoning_summary = "auto"`
 //   - `[model_providers.tingly-box]` (always re-pinned to the supplied base URL)
-//   - `[profiles.<sanitized(model)>]` for each model
+//   - `[profiles.<sanitized(model)>]` for each model — overwritten unconditionally
+//     under that key; `agent restore codex` recovers the previous file if needed
 //
-// If a profile key collides with one the user already wrote (and that profile
-// is not ours), our profile is suffixed (`-1`, `-2`, …) to avoid clobbering.
 // Orphan tingly profiles from earlier applies are NOT garbage-collected; if
 // the user has trimmed their rules they can remove stale profiles by hand.
 //
@@ -980,37 +979,13 @@ func mergeCodexConfig(cfg map[string]interface{}, baseURL string, models []strin
 		profiles = map[string]interface{}{}
 	}
 	for _, model := range models {
-		key := pickCodexProfileKey(profiles, model)
-		profiles[key] = map[string]interface{}{
+		profiles[sanitizeCodexProfileKey(model)] = map[string]interface{}{
 			"model":          model,
 			"model_provider": "tingly-box",
 		}
 	}
 	if len(profiles) > 0 {
 		cfg["profiles"] = profiles
-	}
-}
-
-// pickCodexProfileKey returns the profile key under which we should write our
-// profile for the given model. It prefers the sanitized model name; if that
-// slot is already occupied by a non-tingly profile (or a tingly profile for a
-// different model), it appends `-N` until a writable slot is found. A slot is
-// writable when it is empty OR already points at this exact model via the
-// tingly-box provider (so re-applying is idempotent).
-func pickCodexProfileKey(profiles map[string]interface{}, model string) string {
-	base := sanitizeCodexProfileKey(model)
-	candidate := base
-	for i := 1; ; i++ {
-		existing, occupied := profiles[candidate].(map[string]interface{})
-		if !occupied {
-			return candidate
-		}
-		if mp, _ := existing["model_provider"].(string); mp == "tingly-box" {
-			if m, _ := existing["model"].(string); m == model {
-				return candidate
-			}
-		}
-		candidate = fmt.Sprintf("%s-%d", base, i)
 	}
 }
 
