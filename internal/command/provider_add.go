@@ -320,8 +320,10 @@ func runAdd(appManager *AppManager, args []string) error {
 		}
 	}
 
-	// Check if provider already exists
-	if existingProvider, err := appManager.GetProvider(name); err == nil && existingProvider != nil {
+	// Check if provider already exists. Providers are keyed by UUID, so
+	// duplicate detection has to go through the name index — GetProvider
+	// takes a UUID and would never match a freshly-typed name.
+	if existingProvider, err := appManager.GetProviderByName(name); err == nil && existingProvider != nil {
 		fmt.Printf("Provider '%s' already exists. Please use a different name or update the existing provider.\n", name)
 		return fmt.Errorf("provider already exists")
 	}
@@ -356,8 +358,16 @@ func runAdd(appManager *AppManager, args []string) error {
 	return addProviderWithConfirmation(appManager, reader, name, apiBase, token, apiStyle)
 }
 
-// addProviderWithConfirmation displays summary and adds the provider
+// addProviderWithConfirmation displays summary and adds the provider.
+// Enforces the duplicate-name check here too, because runAdd's positional-arg
+// fast path skips the interactive pre-check and would otherwise let users
+// register multiple providers with the same name (each gets a unique UUID).
 func addProviderWithConfirmation(appManager *AppManager, reader *bufio.Reader, name, apiBase, token string, apiStyle APIStyle) error {
+	if existingProvider, err := appManager.GetProviderByName(name); err == nil && existingProvider != nil {
+		fmt.Printf("Provider '%s' already exists. Please use a different name or update the existing provider.\n", name)
+		return fmt.Errorf("provider already exists")
+	}
+
 	// Display summary and get confirmation
 	fmt.Println("\n--- Configuration Summary ---")
 	fmt.Printf("Provider Name: %s\n", name)

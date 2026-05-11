@@ -379,11 +379,18 @@ func runProviderGetInteractive(appManager *AppManager, reader *bufio.Reader) err
 	return runProviderGet(appManager, name)
 }
 
-// runProviderGet displays provider details
-func runProviderGet(appManager *AppManager, name string) error {
-	provider, err := appManager.GetProvider(name)
-	if err != nil {
-		return fmt.Errorf("provider not found: %s", name)
+// runProviderGet displays provider details. The argument is interpreted as a
+// provider name first (matching `config get`'s "Provider name" help text); if
+// that misses, we try it as a UUID so users with a UUID at hand still work.
+// Providers are keyed by UUID, so a bare name lookup must go through the
+// dedicated name index — not GetProvider, which expects a UUID.
+func runProviderGet(appManager *AppManager, nameOrUUID string) error {
+	provider, err := appManager.GetProviderByName(nameOrUUID)
+	if err != nil || provider == nil {
+		provider, err = appManager.GetProvider(nameOrUUID)
+	}
+	if err != nil || provider == nil {
+		return fmt.Errorf("provider not found: %s", nameOrUUID)
 	}
 
 	fmt.Println("\n🔍 Provider Details")
