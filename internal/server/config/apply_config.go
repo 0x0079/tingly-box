@@ -920,6 +920,13 @@ func ApplyCodexConfig(baseURL string, models []string) (*ApplyResult, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get home directory: %w", err)
 	}
+	if homeDir == "" {
+		// os.UserHomeDir can succeed and return "" in odd container setups
+		// where neither $HOME nor /etc/passwd resolves the current user.
+		// We refuse to proceed because filepath.Join would emit "/.codex/..."
+		// which Codex rejects as a non-absolute catalog path.
+		return nil, fmt.Errorf("home directory resolved to empty path")
+	}
 
 	configDir := filepath.Join(homeDir, ".codex")
 	targetPath := filepath.Join(configDir, "config.toml")
@@ -999,7 +1006,11 @@ func ApplyCodexConfig(baseURL string, models []string) (*ApplyResult, error) {
 func RenderCodexConfigTOML(baseURL string, models []string) ([]byte, error) {
 	catalogPathForConfig := ""
 	if len(models) > 0 {
-		if homeDir, err := os.UserHomeDir(); err == nil {
+		// Guard against environments where UserHomeDir returns "" with no
+		// error (rare, but it makes filepath.Join emit "/.codex/..." which
+		// Codex then fails to parse as AbsolutePathBuf). Better to omit the
+		// field entirely than to write a broken path.
+		if homeDir, err := os.UserHomeDir(); err == nil && homeDir != "" {
 			catalogPathForConfig = filepath.Join(homeDir, ".codex", codexModelCatalogFile)
 		}
 	}
@@ -1057,15 +1068,26 @@ func mergeCodexConfig(cfg map[string]interface{}, baseURL string, models []strin
 // with the required fields populated using conservative defaults that match
 // the OpenAI Responses API surface (text-in/text-out, reasoning summaries on,
 // no verbosity knob). Codex 0.124+ deserializes this into
-// `protocol::openai_models::ModelsResponse`.
+// `protocol::openai_models::ModelsResponse`; field names and value types must
+// stay in sync with that struct.
 func renderCodexModelCatalog(models []string) ([]byte, error) {
+	// supported_reasoning_levels is Vec<ReasoningEffortPreset>, not a bare
+	// string list — each element is an {effort, description} object. Values
+	// mirror Codex's bundled catalog for GPT-5 so /model shows the familiar
+	// presets.
+	reasoningPresets := []map[string]interface{}{
+		{"effort": "minimal", "description": "Minimal reasoning for the fastest responses"},
+		{"effort": "low", "description": "Fast responses with lighter reasoning"},
+		{"effort": "medium", "description": "Balances speed and reasoning depth for everyday tasks"},
+		{"effort": "high", "description": "Greater reasoning depth for complex problems"},
+	}
 	entries := make([]map[string]interface{}, 0, len(models))
 	for _, model := range models {
 		entries = append(entries, map[string]interface{}{
 			"slug":                             model,
 			"display_name":                     model,
 			"description":                      "Tingly Box managed model",
-			"supported_reasoning_levels":       []string{"minimal", "low", "medium", "high"},
+			"supported_reasoning_levels":       reasoningPresets,
 			"default_reasoning_level":          "medium",
 			"shell_type":                       "shell_command",
 			"visibility":                       "list",

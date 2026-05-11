@@ -1110,6 +1110,50 @@ func TestApplyCodexConfig_WritesCatalogAndPointsConfigAtIt(t *testing.T) {
 	}
 }
 
+// supported_reasoning_levels deserializes into Vec<ReasoningEffortPreset>
+// upstream — a list of {effort, description} objects. Regression test for a
+// bug where we emitted bare strings and Codex rejected the catalog at startup
+// with "invalid type: string ..., expected struct ReasoningEffortPreset".
+func TestApplyCodexConfig_CatalogReasoningPresetsAreObjects(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("HOME", tempDir)
+
+	if _, err := ApplyCodexConfig("http://h/tingly/codex", []string{"tingly-codex"}); err != nil {
+		t.Fatalf("ApplyCodexConfig: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(tempDir, ".codex", "tingly-model-catalog.json"))
+	if err != nil {
+		t.Fatalf("read catalog: %v", err)
+	}
+	var catalog struct {
+		Models []struct {
+			SupportedReasoningLevels []struct {
+				Effort      string `json:"effort"`
+				Description string `json:"description"`
+			} `json:"supported_reasoning_levels"`
+		} `json:"models"`
+	}
+	if err := json.Unmarshal(data, &catalog); err != nil {
+		t.Fatalf("unmarshal: %v\n%s", err, data)
+	}
+	if len(catalog.Models) != 1 {
+		t.Fatalf("models len = %d, want 1", len(catalog.Models))
+	}
+	levels := catalog.Models[0].SupportedReasoningLevels
+	if len(levels) == 0 {
+		t.Fatal("supported_reasoning_levels empty")
+	}
+	for i, lvl := range levels {
+		if lvl.Effort == "" {
+			t.Errorf("levels[%d].effort empty (likely emitted as bare string)", i)
+		}
+		if lvl.Description == "" {
+			t.Errorf("levels[%d].description empty", i)
+		}
+	}
+}
+
 func TestApplyCodexConfig_NoModels_SkipsCatalog(t *testing.T) {
 	tempDir := t.TempDir()
 	t.Setenv("HOME", tempDir)
