@@ -352,7 +352,10 @@ func TestMiddleware_RequestBodyStorage(t *testing.T) {
 
 	engine := gin.New()
 	engine.Use(middleware.Middleware())
-	engine.POST("/test", func(c *gin.Context) { c.String(http.StatusOK, "OK") })
+	engine.POST("/test", func(c *gin.Context) {
+		_, _ = io.ReadAll(c.Request.Body) // drain so TeeReader copies bytes
+		c.String(http.StatusOK, "OK")
+	})
 
 	// Make a POST request with body
 	testBody := `{"test": "data", "value": 123}`
@@ -379,17 +382,22 @@ func TestMiddleware_RequestBodyStorage(t *testing.T) {
 	assert.Equal(t, "POST", storedBody.Method)
 	assert.Equal(t, "/test", storedBody.Path)
 	assert.Equal(t, testBody, storedBody.Body)
-	assert.False(t, storedBody.Truncated, "Expected body not to be truncated")
 }
 
-func TestMiddleware_RequestBodyTruncation(t *testing.T) {
+// TestMiddleware_LargeRequestBodyPreserved asserts that a body larger than
+// what the legacy implementation would have truncated is now stored
+// intact: the store's byte budget governs eviction across entries, but a
+// single entry is never silently shortened.
+func TestMiddleware_LargeRequestBodyPreserved(t *testing.T) {
 	middleware, _ := setupTestMiddleware()
 
 	engine := gin.New()
 	engine.Use(middleware.Middleware())
-	engine.POST("/test", func(c *gin.Context) { c.String(http.StatusOK, "OK") })
+	engine.POST("/test", func(c *gin.Context) {
+		_, _ = io.ReadAll(c.Request.Body) // drain so TeeReader copies bytes
+		c.String(http.StatusOK, "OK")
+	})
 
-	// Create a body larger than MaxRequestBodySize (1MB)
 	longBody := string(make([]byte, 2*1024*1024)) // 2MB body
 
 	w := httptest.NewRecorder()
@@ -406,8 +414,7 @@ func TestMiddleware_RequestBodyTruncation(t *testing.T) {
 	storedBody := store.Get(bodyRef.(string))
 
 	assert.NotNil(t, storedBody)
-	assert.True(t, storedBody.Truncated, "Expected body to be truncated")
-	assert.LessOrEqual(t, len(storedBody.Body), MaxRequestBodySize, "Expected stored body to be at most MaxRequestBodySize")
+	assert.Equal(t, len(longBody), len(storedBody.Body), "Expected body to be stored intact")
 }
 
 func TestMiddleware_RequestBodyNotStoredForGET(t *testing.T) {
@@ -453,7 +460,10 @@ func TestMiddleware_RequestBodyStorageEmptyBody(t *testing.T) {
 
 	engine := gin.New()
 	engine.Use(middleware.Middleware())
-	engine.POST("/test", func(c *gin.Context) { c.String(http.StatusOK, "OK") })
+	engine.POST("/test", func(c *gin.Context) {
+		_, _ = io.ReadAll(c.Request.Body) // drain so TeeReader copies bytes
+		c.String(http.StatusOK, "OK")
+	})
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("POST", "/test", nil)
@@ -484,11 +494,14 @@ func TestMiddleware_RequestBodyCircularEviction(t *testing.T) {
 	middleware := NewMultiModeMemoryLogMiddleware(multiLogger)
 
 	// Manually set a small RequestBodyStore for testing eviction
-	middleware.requestBodyStore = obs.NewRequestBodyStore(2) // Only store 2 bodies
+	middleware.requestBodyStore = obs.NewRequestBodyStore(2, 0) // Only store 2 bodies (count cap, no byte cap)
 
 	engine := gin.New()
 	engine.Use(middleware.Middleware())
-	engine.POST("/test", func(c *gin.Context) { c.String(http.StatusOK, "OK") })
+	engine.POST("/test", func(c *gin.Context) {
+		_, _ = io.ReadAll(c.Request.Body) // drain so TeeReader copies bytes
+		c.String(http.StatusOK, "OK")
+	})
 
 	// Make 3 POST requests to trigger eviction
 	var bodyRefs []string

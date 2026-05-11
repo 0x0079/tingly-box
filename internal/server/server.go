@@ -599,6 +599,10 @@ func NewServer(cfg *config.Config, opts ...ServerOption) *Server {
 	// Initialize multi-mode memory log middleware for HTTP request logging
 	// Logs are written to both multi-mode logger (persistence) and memory (quick access)
 	memoryLogMW := middleware.NewMultiModeMemoryLogMiddleware(server.multiLogger)
+	// Stream event store keeps raw SSE events per request, keyed by the
+	// same body_ref the middleware emits. 32 MiB budget (paired with the
+	// 32 MiB request body store for ~64 MiB total debug capture memory).
+	memoryLogMW.SetStreamEventStore(pkgobs.NewStreamEventStore(32 * 1024 * 1024))
 
 	// Initialize API token manager (for multi-tenant authentication)
 	var apiTokenManager *auth.APITokenManager

@@ -12,9 +12,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"github.com/tingly-dev/tingly-box/internal/protocol/assembler"
+	"github.com/tingly-dev/tingly-box/internal/server/middleware"
 	"github.com/tingly-dev/tingly-box/internal/typ"
 
 	"github.com/tingly-dev/tingly-box/internal/obs"
+	pkgobs "github.com/tingly-dev/tingly-box/pkg/obs"
 )
 
 // RecordScenarioRequest records the scenario-level request (client -> tingly-box)
@@ -129,6 +131,63 @@ func (sr *ScenarioRecorder) RecordStreamChunk(eventType string, chunk interface{
 	}
 
 	sr.streamChunks = append(sr.streamChunks, chunkData)
+
+	// Publish to the in-memory StreamEventStore so the same bytes can be
+	// retrieved by /api/v1/log/stream/:body_ref. This is the debugging
+	// path — separate from the scenario sink which writes to disk.
+	sr.publishStreamEvent(eventType, pkgobs.StreamKindClient, chunkJSON)
+}
+
+// closeStreamCapture marks the in-memory stream record as finished. It
+// pairs with publishStreamEvent so the debug API can render a "complete"
+// vs "in-flight" indicator.
+func (sr *ScenarioRecorder) closeStreamCapture() {
+	if sr == nil || sr.c == nil {
+		return
+	}
+	storeAny, ok := sr.c.Get(middleware.CtxKeyStreamEventStore)
+	if !ok {
+		return
+	}
+	store, ok := storeAny.(*pkgobs.StreamEventStore)
+	if !ok || store == nil {
+		return
+	}
+	idAny, ok := sr.c.Get(middleware.CtxKeyBodyRef)
+	if !ok {
+		return
+	}
+	id, _ := idAny.(string)
+	if id == "" {
+		return
+	}
+	store.Close(id)
+}
+
+// publishStreamEvent looks up the StreamEventStore + body_ref from the
+// gin.Context (both are set by the multi-mode memory log middleware) and
+// appends the raw event bytes. No-op when either is missing.
+func (sr *ScenarioRecorder) publishStreamEvent(eventType, kind string, data []byte) {
+	if sr == nil || sr.c == nil {
+		return
+	}
+	storeAny, ok := sr.c.Get(middleware.CtxKeyStreamEventStore)
+	if !ok {
+		return
+	}
+	store, ok := storeAny.(*pkgobs.StreamEventStore)
+	if !ok || store == nil {
+		return
+	}
+	idAny, ok := sr.c.Get(middleware.CtxKeyBodyRef)
+	if !ok {
+		return
+	}
+	id, _ := idAny.(string)
+	if id == "" {
+		return
+	}
+	store.Append(id, kind, eventType, data)
 }
 
 // SetAssembledResponse sets the assembled response for streaming
@@ -347,6 +406,7 @@ func (sr *streamRecorder) Finish(model string, inputTokens, outputTokens int) {
 			logrus.Debugf("StreamRecorder: using fallback response, chunks=%d", len(sr.recorder.streamChunks))
 		}
 	}
+	sr.recorder.closeStreamCapture()
 }
 
 // RecordError records an error

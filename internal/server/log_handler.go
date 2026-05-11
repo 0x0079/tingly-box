@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
@@ -224,7 +225,7 @@ func (s *Server) GetRequestBody(c *gin.Context) {
 		Method:    entry.Method,
 		Path:      entry.Path,
 		Body:      entry.Body,
-		Truncated: entry.Truncated,
+		Truncated: false,
 	})
 }
 
@@ -249,6 +250,104 @@ func (s *Server) ClearRequestBodies(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Request bodies cleared successfully",
 	})
+}
+
+// StreamEventResponse is one event in the API response.
+type StreamEventResponse struct {
+	TS   time.Time       `json:"ts"`
+	Type string          `json:"type"`
+	Kind string          `json:"kind"`
+	Data json.RawMessage `json:"data"`
+}
+
+// StreamRecordResponse is the API response for GET /api/v1/log/stream/:id.
+type StreamRecordResponse struct {
+	ID        string                `json:"id"`
+	StartTime time.Time             `json:"start_time"`
+	Closed    bool                  `json:"closed"`
+	Total     int                   `json:"total"`
+	Events    []StreamEventResponse `json:"events"`
+}
+
+// GetStreamEvents returns the captured raw stream events for a body_ref.
+// GET /api/v1/log/stream/:id
+func (s *Server) GetStreamEvents(c *gin.Context) {
+	if s.memoryLogMW == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Memory log middleware not available"})
+		return
+	}
+	store := s.memoryLogMW.GetStreamEventStore()
+	if store == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Stream event store not available"})
+		return
+	}
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing stream id"})
+		return
+	}
+	rec := store.Get(id)
+	if rec == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Stream record not found (may have been evicted)"})
+		return
+	}
+	events := make([]StreamEventResponse, 0, len(rec.Events))
+	for _, e := range rec.Events {
+		// Pass-through raw bytes when they parse as JSON, otherwise wrap
+		// as a JSON string so the response itself is always valid JSON.
+		data := e.Data
+		if !json.Valid(data) {
+			quoted, _ := json.Marshal(string(data))
+			data = quoted
+		}
+		events = append(events, StreamEventResponse{
+			TS:   e.TS,
+			Type: e.Type,
+			Kind: e.Kind,
+			Data: data,
+		})
+	}
+	c.JSON(http.StatusOK, StreamRecordResponse{
+		ID:        rec.ID,
+		StartTime: rec.StartTime,
+		Closed:    rec.Closed,
+		Total:     len(events),
+		Events:    events,
+	})
+}
+
+// GetStreamStats returns lightweight stats about the stream event store.
+func (s *Server) GetStreamStats(c *gin.Context) {
+	if s.memoryLogMW == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Memory log middleware not available"})
+		return
+	}
+	store := s.memoryLogMW.GetStreamEventStore()
+	if store == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Stream event store not available"})
+		return
+	}
+	records, bytes, max := store.Stats()
+	c.JSON(http.StatusOK, gin.H{
+		"records":   records,
+		"bytes":     bytes,
+		"max_bytes": max,
+	})
+}
+
+// ClearStreamEvents clears all stream records from memory.
+func (s *Server) ClearStreamEvents(c *gin.Context) {
+	if s.memoryLogMW == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Memory log middleware not available"})
+		return
+	}
+	store := s.memoryLogMW.GetStreamEventStore()
+	if store == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Stream event store not available"})
+		return
+	}
+	store.Clear()
+	c.JSON(http.StatusOK, gin.H{"message": "Stream events cleared successfully"})
 }
 
 // GetRequestBodyStats returns statistics about the request body store

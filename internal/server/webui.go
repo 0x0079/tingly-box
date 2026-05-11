@@ -710,6 +710,21 @@ func (s *Server) useWebAPIEndpoints(manager *swagger.RouteManager) {
 		swagger.WithTags("logs"),
 	)
 
+	// Stream event routes (raw SSE events captured per body_ref)
+	apiV1.GET("/log/stream/:id", s.GetStreamEvents,
+		swagger.WithDescription("Get captured raw stream events for a request, keyed by body_ref"),
+		swagger.WithTags("logs"),
+		swagger.WithResponseModel(StreamRecordResponse{}),
+	)
+	apiV1.GET("/log/stream/stats", s.GetStreamStats,
+		swagger.WithDescription("Get stream event store statistics"),
+		swagger.WithTags("logs"),
+	)
+	apiV1.DELETE("/log/stream", s.ClearStreamEvents,
+		swagger.WithDescription("Clear all captured stream events"),
+		swagger.WithTags("logs"),
+	)
+
 	// System Log API routes (application logs from JSON file)
 	apiV1.GET("/system/logs", s.GetSystemLogs,
 		swagger.WithDescription("Get recent system logs with optional filtering (from JSON log file). Use 'limit' parameter to control how many recent entries to return."),

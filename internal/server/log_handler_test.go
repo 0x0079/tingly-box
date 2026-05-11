@@ -46,7 +46,7 @@ func TestGetRequestBody_Success(t *testing.T) {
 	// Store a request body
 	store := memoryLogMW.GetRequestBodyStore()
 	testBody := `{"test": "data", "value": 123}`
-	bodyID := store.Store("POST", "/v1/chat/completions", testBody, 1024)
+	bodyID := store.Store("", "POST", "/v1/chat/completions", testBody)
 
 	// Create gin context
 	w := httptest.NewRecorder()
@@ -104,13 +104,14 @@ func TestGetRequestBody_MissingID(t *testing.T) {
 	assert.Contains(t, resp["error"], "Missing request body ID")
 }
 
-func TestGetRequestBody_TruncatedBody(t *testing.T) {
+func TestGetRequestBody_LargeBodyPreserved(t *testing.T) {
 	server, memoryLogMW := setupTestLogServer()
 
-	// Store a body that will be truncated
+	// The store no longer truncates per-entry: a large body is stored
+	// intact (eviction across entries is governed by the byte budget).
 	store := memoryLogMW.GetRequestBodyStore()
-	longBody := string(make([]byte, 2048))                 // 2KB body
-	bodyID := store.Store("POST", "/test", longBody, 1024) // Max 1KB
+	longBody := string(make([]byte, 2048))
+	bodyID := store.Store("", "POST", "/test", longBody)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -123,9 +124,8 @@ func TestGetRequestBody_TruncatedBody(t *testing.T) {
 	var resp RequestBodyResponse
 	err := json.Unmarshal(w.Body.Bytes(), &resp)
 	assert.NoError(t, err)
-
-	assert.True(t, resp.Truncated)
-	assert.LessOrEqual(t, len(resp.Body), 1024)
+	assert.False(t, resp.Truncated)
+	assert.Equal(t, len(longBody), len(resp.Body))
 }
 
 func TestClearRequestBodies_Success(t *testing.T) {
@@ -133,8 +133,8 @@ func TestClearRequestBodies_Success(t *testing.T) {
 
 	// Store some bodies
 	store := memoryLogMW.GetRequestBodyStore()
-	store.Store("POST", "/test1", "body1", 1024)
-	store.Store("POST", "/test2", "body2", 1024)
+	store.Store("", "POST", "/test1", "body1")
+	store.Store("", "POST", "/test2", "body2")
 
 	assert.Equal(t, 2, store.Size())
 
@@ -157,9 +157,9 @@ func TestGetRequestBodyStats_Success(t *testing.T) {
 
 	// Store some bodies
 	store := memoryLogMW.GetRequestBodyStore()
-	store.Store("POST", "/test1", "body1", 1024)
-	store.Store("POST", "/test2", "body2", 1024)
-	store.Store("POST", "/test3", "body3", 1024)
+	store.Store("", "POST", "/test1", "body1")
+	store.Store("", "POST", "/test2", "body2")
+	store.Store("", "POST", "/test3", "body3")
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
