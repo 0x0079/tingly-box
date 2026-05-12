@@ -43,7 +43,7 @@ export default {
       "useOpenCode": "OpenCode",
       "useXcode": "Xcode",
       "useVSCode": "VS Code",
-      "useEmbed": "Embed",
+      "useEmbed": "Embeddings",
       "useImageGen": "Image Gen",
       "playground": "Playground",
       "apiKeys": "API Keys",
