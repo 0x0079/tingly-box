@@ -308,10 +308,15 @@ type MCPSourceConfig struct {
 
 // AdvisorConfig configures the in-process advisor tool source.
 type AdvisorConfig struct {
-	BaseURL           string `json:"base_url,omitempty" yaml:"base_url,omitempty"`
-	Model             string `json:"model,omitempty" yaml:"model,omitempty"`
-	APIKey            string `json:"api_key,omitempty" yaml:"api_key,omitempty"`
-	MaxUsesPerRequest int    `json:"max_uses_per_request,omitempty" yaml:"max_uses_per_request,omitempty"`
+	// ProviderUUID references a configured provider by UUID.
+	ProviderUUID string `json:"provider_uuid,omitempty" yaml:"provider_uuid,omitempty"`
+	Model        string `json:"model,omitempty" yaml:"model,omitempty"`
+
+	// ProviderResolver is a function that resolves a provider by UUID at call time.
+	// It is not persisted to JSON/YAML and must be set by the server before use.
+	ProviderResolver func(string) (*Provider, error) `json:"-" yaml:"-"`
+
+	MaxUsesPerRequest int `json:"max_uses_per_request,omitempty" yaml:"max_uses_per_request,omitempty"`
 	// The max token output by adviser. Too much explodes worker's context. 4k is enough for pure suggestions.
 	MaxTokens int `json:"max_tokens,omitempty" yaml:"max_tokens,omitempty"`
 	// TimeoutSeconds overrides the default 60s per-call timeout. Set higher for slow/large models.
