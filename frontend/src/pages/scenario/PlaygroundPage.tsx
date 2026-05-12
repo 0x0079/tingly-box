@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-    Alert,
     Box,
     Button,
     Card,
@@ -17,11 +16,14 @@ import {
 import { useTranslation } from 'react-i18next';
 import { api } from '@/services/api';
 import { getOpenAIClient } from '@/services/openaiClient';
+import { useFunctionPanelData } from '@/hooks/useFunctionPanelData';
 import PageLayout from '@/components/PageLayout';
 import UnifiedCard from '@/components/UnifiedCard';
 import CardGrid from '@/components/CardGrid';
 
 const IMAGE_SCENARIO = 'imagegen';
+
+type Quality = 'auto' | 'high' | 'medium' | 'low' | 'standard';
 
 const extractModelsFromRules = (rules: any[] | undefined | null): string[] => {
     if (!Array.isArray(rules)) return [];
@@ -38,15 +40,16 @@ const extractModelsFromRules = (rules: any[] | undefined | null): string[] => {
 
 const PlaygroundPage: React.FC = () => {
     const { t } = useTranslation();
+    const { notification, showNotification } = useFunctionPanelData();
 
     const [models, setModels] = useState<string[]>([]);
     const [model, setModel] = useState<string>('');
     const [prompt, setPrompt] = useState<string>('');
     const [size, setSize] = useState<string>('1024x1024');
+    const [quality, setQuality] = useState<Quality>('auto');
     const [count, setCount] = useState<number>(1);
     const [results, setResults] = useState<{ url?: string; b64_json?: string }[]>([]);
     const [sending, setSending] = useState(false);
-    const [error, setError] = useState<string>('');
     const [loadingModels, setLoadingModels] = useState(false);
 
     useEffect(() => {
@@ -68,7 +71,6 @@ const PlaygroundPage: React.FC = () => {
     const handleGenerate = useCallback(async () => {
         if (!prompt.trim() || !model) return;
         setSending(true);
-        setError('');
         setResults([]);
         try {
             const client = await getOpenAIClient(IMAGE_SCENARIO);
@@ -77,41 +79,38 @@ const PlaygroundPage: React.FC = () => {
                 prompt: prompt.trim(),
                 n: count,
                 size: size as any,
+                quality,
             });
             setResults(resp.data ?? []);
         } catch (err: any) {
-            setError(err?.message || 'Request failed');
+            const status = err?.status ? `${err.status}: ` : '';
+            const msg = err?.error?.message || err?.message || 'Request failed';
+            showNotification(`${status}${msg}`, 'error');
         } finally {
             setSending(false);
         }
-    }, [prompt, model, count, size]);
+    }, [prompt, model, count, size, quality, showNotification]);
 
     const noModels = useMemo(() => models.length === 0, [models]);
 
     return (
-        <PageLayout loading={false}>
+        <PageLayout loading={false} notification={notification}>
             <CardGrid>
                 <UnifiedCard
                     size="full"
                     title={t('playground.imageTitle', { defaultValue: 'Image Generation Playground' })}
                 >
                     <Stack spacing={2}>
-                        {error && (
-                            <Alert severity="error" onClose={() => setError('')}>
-                                {error}
-                            </Alert>
-                        )}
-
                         {noModels && !loadingModels && (
-                            <Alert severity="info">
+                            <Typography variant="body2" color="text.secondary">
                                 {t('playground.noImageModels', {
                                     defaultValue: 'No image generation rules configured. Add one on the Image Gen page first.',
                                 })}
-                            </Alert>
+                            </Typography>
                         )}
 
-                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                            <FormControl size="small" sx={{ minWidth: 240 }}>
+                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} flexWrap="wrap">
+                            <FormControl size="small" sx={{ minWidth: 220 }}>
                                 <InputLabel id="image-model-label">
                                     {t('playground.model', { defaultValue: 'Model' })}
                                 </InputLabel>
@@ -142,6 +141,23 @@ const PlaygroundPage: React.FC = () => {
                                     <MenuItem value="1024x1024">1024x1024</MenuItem>
                                     <MenuItem value="1024x1792">1024x1792</MenuItem>
                                     <MenuItem value="1792x1024">1792x1024</MenuItem>
+                                </Select>
+                            </FormControl>
+                            <FormControl size="small" sx={{ minWidth: 140 }}>
+                                <InputLabel id="image-quality-label">
+                                    {t('playground.quality', { defaultValue: 'Quality' })}
+                                </InputLabel>
+                                <Select
+                                    labelId="image-quality-label"
+                                    label={t('playground.quality', { defaultValue: 'Quality' })}
+                                    value={quality}
+                                    onChange={(e) => setQuality(e.target.value as Quality)}
+                                >
+                                    <MenuItem value="auto">auto</MenuItem>
+                                    <MenuItem value="low">low</MenuItem>
+                                    <MenuItem value="medium">medium</MenuItem>
+                                    <MenuItem value="high">high</MenuItem>
+                                    <MenuItem value="standard">standard</MenuItem>
                                 </Select>
                             </FormControl>
                             <TextField
