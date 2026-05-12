@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Box, Tab, Tabs } from '@mui/material';
+import { Box, Collapse, IconButton, Tab, Tabs } from '@mui/material';
+import { ExpandLess, ExpandMore } from '@mui/icons-material';
 import UnifiedCard from '@/components/UnifiedCard';
 import CodeBlock from '@/components/CodeBlock';
 
@@ -81,6 +82,7 @@ const ImageGenQuickStartCard: React.FC<ImageGenQuickStartCardProps> = ({
     onCopy,
 }) => {
     const [tab, setTab] = useState<Lang>('python');
+    const [expanded, setExpanded] = useState(true);
     const active = TABS.find((t) => t.value === tab)!;
     const code = buildSnippet(tab, baseUrl, model);
 
@@ -89,31 +91,38 @@ const ImageGenQuickStartCard: React.FC<ImageGenQuickStartCardProps> = ({
             size="full"
             title="Quick Start"
             subtitle="Call the image generation endpoint via the OpenAI SDK or curl. Token comes from GET /api/v1/token."
+            rightAction={
+                <IconButton size="small" onClick={() => setExpanded((v) => !v)}>
+                    {expanded ? <ExpandLess fontSize="small" /> : <ExpandMore fontSize="small" />}
+                </IconButton>
+            }
         >
-            <Box>
-                <Tabs
-                    value={tab}
-                    onChange={(_, v) => setTab(v)}
-                    sx={{ minHeight: 32, mb: 1, '& .MuiTabs-indicator': { height: 3 } }}
-                >
-                    {TABS.map((t) => (
-                        <Tab
-                            key={t.value}
-                            value={t.value}
-                            label={t.label}
-                            sx={{ minHeight: 32, py: 0.5, fontSize: '0.875rem' }}
-                        />
-                    ))}
-                </Tabs>
-                <CodeBlock
-                    code={code}
-                    language={tab === 'curl' ? 'bash' : tab}
-                    filename={active.filename}
-                    onCopy={onCopy ? (c) => onCopy(c, active.filename) : undefined}
-                    maxHeight={360}
-                    wrap={false}
-                />
-            </Box>
+            <Collapse in={expanded} timeout="auto">
+                <Box>
+                    <Tabs
+                        value={tab}
+                        onChange={(_, v) => setTab(v)}
+                        sx={{ minHeight: 32, mb: 1, '& .MuiTabs-indicator': { height: 3 } }}
+                    >
+                        {TABS.map((t) => (
+                            <Tab
+                                key={t.value}
+                                value={t.value}
+                                label={t.label}
+                                sx={{ minHeight: 32, py: 0.5, fontSize: '0.875rem' }}
+                            />
+                        ))}
+                    </Tabs>
+                    <CodeBlock
+                        code={code}
+                        language={tab === 'curl' ? 'bash' : tab}
+                        filename={active.filename}
+                        onCopy={onCopy ? (c) => onCopy(c, active.filename) : undefined}
+                        maxHeight={200}
+                        wrap={false}
+                    />
+                </Box>
+            </Collapse>
         </UnifiedCard>
     );
 };
