@@ -3,7 +3,10 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -82,12 +85,18 @@ func (s *Server) openAIListModelsWithScenario(c *gin.Context, scenario *typ.Rule
 		}
 
 		models = append(models, OpenAIModel{
-			ID:      rule.RequestModel,
-			Object:  "model",
-			Created: created,
-			OwnedBy: ownedBy,
+			ID:       rule.RequestModel,
+			Object:   "model",
+			Created:  created,
+			OwnedBy:  ownedBy,
+			AuthType: string(primaryAuthTypeForRule(cfg, rule)),
 		})
 	}
+
+	sort.SliceStable(models, func(i, j int) bool {
+		return authTypeSortWeight(typ.AuthType(models[i].AuthType)) <
+			authTypeSortWeight(typ.AuthType(models[j].AuthType))
+	})
 
 	c.JSON(http.StatusOK, OpenAIModelsResponse{
 		Object: "list",
@@ -201,6 +210,33 @@ func (s *Server) HandleOpenAIChatCompletions(c *gin.Context) {
 
 	actualModel := selectedService.Model
 	req.Model = actualModel
+
+	// Virtual-model providers are served by the in-process vmodel handler.
+	// Resolution went through the normal routing pipeline so rules/scenarios
+	// still apply, but no outbound HTTP is performed. req.Model has already
+	// been rewritten to actualModel above, so re-marshaling the request body
+	// ensures the vmodel registry lookup uses the rule's resolved ID rather
+	// than the client-facing requestModel.
+	//
+	// NOTE: this path intentionally skips outbound dispatch helpers (pre-chain,
+	// guardrails, post-recording). Usage/quota tracking for vmodel is tracked
+	// separately.
+	if provider.IsVirtual() && s.virtualModelService != nil {
+		rewritten, err := json.Marshal(req)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{
+				Error: ErrorDetail{
+					Message: "Failed to prepare virtual-model request: " + err.Error(),
+					Type:    "internal_error",
+				},
+			})
+			return
+		}
+		c.Request.Body = io.NopCloser(strings.NewReader(string(rewritten)))
+		c.Request.ContentLength = int64(len(rewritten))
+		s.virtualModelService.GetHandler().ChatCompletions(c)
+		return
+	}
 
 	s.OpenAIChatCompletion(c, req, responseModel, provider, scenarioType, rule)
 }

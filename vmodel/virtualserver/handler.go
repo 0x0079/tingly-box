@@ -38,6 +38,10 @@ func NewHandler(anthropicReg *anthropicvm.Registry, openaiReg *openaivm.Registry
 }
 
 // ListModels handles GET /virtual/v1/models — returns the union of both registries.
+//
+// Deprecated: prefer ListOpenAIModels / ListAnthropicModels for the
+// protocol-split entrypoints. Retained for the legacy mixed-protocol route
+// and for test fixtures that want both registries on one endpoint.
 func (h *Handler) ListModels(c *gin.Context) {
 	models := h.anthropicReg.ListModels()
 	models = append(models, h.openaiReg.ListModels()...)
@@ -45,6 +49,29 @@ func (h *Handler) ListModels(c *gin.Context) {
 		Object: "list",
 		Data:   models,
 	})
+}
+
+// ListOpenAIModels handles GET /virtual/openai/v1/models — returns only the
+// OpenAI-protocol registry so clients pointed at the OpenAI base URL don't
+// see Anthropic-only model IDs they cannot dispatch.
+func (h *Handler) ListOpenAIModels(c *gin.Context) {
+	c.JSON(http.StatusOK, OpenAIModelsResponse{
+		Object: "list",
+		Data:   h.openaiReg.ListModels(),
+	})
+}
+
+// ListAnthropicModels handles GET /virtual/anthropic/v1/models — returns
+// only the Anthropic-protocol registry in Anthropic's native envelope shape
+// (data + first_id/last_id/has_more, no "object" field).
+func (h *Handler) ListAnthropicModels(c *gin.Context) {
+	models := h.anthropicReg.ListModels()
+	resp := AnthropicModelsResponse{Data: models, HasMore: false}
+	if len(models) > 0 {
+		resp.FirstID = models[0].ID
+		resp.LastID = models[len(models)-1].ID
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 // ChatCompletions handles POST /virtual/v1/chat/completions.

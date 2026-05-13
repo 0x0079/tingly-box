@@ -778,6 +778,18 @@ func NewServer(cfg *config.Config, opts ...ServerOption) *Server {
 	server.virtualModelService = virtualserver.NewService()
 	logrus.Debugf("Virtual model service initialized with default models")
 
+	// Seed builtin virtual-model providers (idempotent). These become first-class
+	// rows in the provider store so they show up in the standard UI and dispatch
+	// pipeline; the dispatcher short-circuits to the in-process handler when it
+	// resolves to a vmodel provider.
+	if store := cfg.GetProviderStore(); store != nil {
+		if err := server.virtualModelService.EnsureBuiltinProviders(store); err != nil {
+			logrus.WithError(err).Warn("Failed to seed builtin virtual-model providers")
+		} else {
+			logrus.Debugf("Builtin virtual-model providers seeded")
+		}
+	}
+
 	// Initialize provider quota manager
 	if err := server.initQuotaManager(cfg); err != nil {
 		logrus.WithError(err).Warn("Failed to initialize provider quota manager")
@@ -1280,17 +1292,32 @@ func (s *Server) SetupPassthroughAnthropicEndpoints(group *gin.RouterGroup) {
 	group.GET("/models", s.getModelAuthMiddleware(), s.AnthropicListModels)
 }
 
-// UseVirtualModelEndpoints sets up virtual model endpoints for testing
+// UseVirtualModelEndpoints sets up the direct virtual-model entrypoints,
+// split per protocol:
+//
+//	/virtual/openai/v1/{models,chat/completions}
+//	/virtual/anthropic/v1/{models,messages}
+//
+// These bypass the provider/rule/scenario pipeline and call the in-process
+// handler directly — useful when a client wants a fixed URL pointed at the
+// vmodel registry without configuring a provider. The protocol split
+// ensures /models returns only the model IDs the chosen protocol can
+// actually dispatch.
+//
+// The canonical path for virtual models in normal use is still
+// /v1/messages and /v1/chat/completions, where the dispatcher
+// short-circuits to the same handler when it resolves to a vmodel provider
+// (see HandleAnthropicMessages and HandleOpenAIChatCompletions).
 func (s *Server) UseVirtualModelEndpoints() {
-	virtual := s.engine.Group("/virtual")
-	virtual.GET("/models", s.getModelAuthMiddleware(), s.virtualModelService.GetHandler().ListModels)
-	virtual.POST("/chat/completions", s.getModelAuthMiddleware(), s.virtualModelService.GetHandler().ChatCompletions)
-	virtual.POST("/messages", s.getModelAuthMiddleware(), s.virtualModelService.GetHandler().Messages)
+	mw := s.getModelAuthMiddleware()
 
-	virtualV1 := s.engine.Group("/virtual/v1")
-	virtualV1.GET("/models", s.getModelAuthMiddleware(), s.virtualModelService.GetHandler().ListModels)
-	virtualV1.POST("/chat/completions", s.getModelAuthMiddleware(), s.virtualModelService.GetHandler().ChatCompletions)
-	virtualV1.POST("/messages", s.getModelAuthMiddleware(), s.virtualModelService.GetHandler().Messages)
+	openai := s.engine.Group("/virtual/openai")
+	openai.Use(mw)
+	s.virtualModelService.SetupOpenAIRoutes(openai)
+
+	anthropic := s.engine.Group("/virtual/anthropic")
+	anthropic.Use(mw)
+	s.virtualModelService.SetupAnthropicRoutes(anthropic)
 }
 
 func (s *Server) UseLoadBalanceEndpoints() {
@@ -1365,7 +1392,8 @@ func (s *Server) Start(port int) error {
 		fmt.Printf("Embeddings API endpoint: %s://%s:%d/tingly/embed/v1/embeddings\n", scheme, resolvedHost, port)
 		fmt.Printf("Image Generation API endpoint: %s://%s:%d/tingly/imagegen/v1/images/generations\n", scheme, resolvedHost, port)
 		fmt.Printf("Image Generation (Responses API): %s://%s:%d/tingly/imagegen/v1/responses\n", scheme, resolvedHost, port)
-		fmt.Printf("Virtual Model API endpoint: %s://%s:%d/virtual/v1/chat/completions\n", scheme, resolvedHost, port)
+		fmt.Printf("Virtual Model API (OpenAI): %s://%s:%d/virtual/openai/v1/chat/completions\n", scheme, resolvedHost, port)
+		fmt.Printf("Virtual Model API (Anthropic): %s://%s:%d/virtual/anthropic/v1/messages\n", scheme, resolvedHost, port)
 		fmt.Printf("Mode name: %s\n", constant.DefaultModeName)
 		fmt.Printf("Model API key: %s\n", s.config.GetModelToken())
 		return s.httpServer.ListenAndServe()

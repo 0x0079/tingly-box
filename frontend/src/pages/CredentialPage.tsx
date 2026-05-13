@@ -426,9 +426,11 @@ const CredentialPage = () => {
         setProviderFormData(prev => ({ ...prev, [field]: value }));
     }, []);
 
-    // Derived state
+    // Derived state. Providers are partitioned by auth_type into two
+    // user-credential groups; vmodel providers are excluded here and rendered
+    // on the dedicated /credentials/virtual-models page.
     const { apiKeyProviders, oauthProviders, credentialCounts } = useMemo(() => {
-        const apiKeys = providers.filter((p: any) => p.auth_type !== 'oauth');
+        const apiKeys = providers.filter((p: any) => p.auth_type !== 'oauth' && p.auth_type !== 'vmodel');
         const oauth = providers.filter((p: any) => p.auth_type === 'oauth');
         return {
             apiKeyProviders: apiKeys,
@@ -436,7 +438,7 @@ const CredentialPage = () => {
             credentialCounts: {
                 apiKeys: apiKeys.length,
                 oauth: oauth.length,
-                total: providers.length,
+                total: apiKeys.length + oauth.length,
             },
         };
     }, [providers]);
@@ -569,6 +571,7 @@ const CredentialPage = () => {
                         />
                     )}
                 </Box>
+
             </UnifiedCard>
 
             {/* API Key Provider Dialog */}
