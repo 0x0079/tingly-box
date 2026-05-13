@@ -4,13 +4,20 @@
 package processor
 
 // E2E test for the vision-proxy smart-routing bypass against a real
-// tingly-box deployment. Run with:
+// tingly-box deployment.
 //
-//   TINGLY_BASE_URL='https://your-tingly.example/tingly/anthropic' \
+// Quickest path (local debug — only the API key is required):
+//
 //   TINGLY_API_KEY='sk-…' \
-//   TINGLY_MODEL='your-downstream-model-name' \
-//   TINGLY_IMAGE_PATH='/abs/path/to/picture.png'   # optional
-//   go test -tags=e2e -run TestVisionProxy_E2E ./internal/server/processor/...
+//     go test -tags=e2e -v -run TestVisionProxy_E2E ./internal/server/processor/...
+//
+// Defaults used when the env var is absent:
+//   TINGLY_BASE_URL   = http://127.0.0.1:12580/anthropic
+//   TINGLY_MODEL      = claude-3-5-sonnet-latest
+//   TINGLY_IMAGE_PATH = embedded 1x1 black PNG
+//
+// Override any of them to point at a remote deployment, a different model,
+// or a real image. The API key has no default — an unset key skips the test.
 //
 // Expected wiring on the server side:
 //   - A SmartRouting rule with op {Position: proxy_vision, Operation: enabled}
@@ -19,9 +26,8 @@ package processor
 //     text-only downstream model in its main Services list
 //
 // What the test does:
-//   - Sends a v1 Messages.New request with one user message containing a
-//     text prompt + an image block (base64 if reading from file, or the
-//     embedded 1x1 PNG fallback).
+//   - Sends a v1 Messages.New request (and a Beta variant) with one user
+//     message containing a text prompt + an image block.
 //   - Asserts: 200 status, non-empty response text.
 //   - Logs the response so an operator can eyeball whether the description
 //     made it through.
@@ -39,6 +45,23 @@ import (
 	anthropicOption "github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/stretchr/testify/require"
 )
+
+// Defaults for local debugging — used when the corresponding TINGLY_*
+// env var is unset. Override any of them by exporting the env var. The
+// API key is intentionally NOT defaulted: an unset key skips the test
+// rather than spamming the upstream with bogus auth.
+const (
+	defaultBaseURL = "http://127.0.0.1:12580/anthropic"
+	defaultModel   = "claude-3-5-sonnet-latest"
+	defaultPrompt  = "There's an image attached. Tell me what you see in it, in one short sentence."
+)
+
+func envOr(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
 
 // 1x1 black PNG fallback — same blob the unit harness uses. Vision models
 // can still describe it ("a tiny black square") so the round-trip is
@@ -71,12 +94,12 @@ func e2eImageSource(t *testing.T) (mediaType, b64 string) {
 // to have a `proxy_vision.enabled` smart-routing rule that handles the
 // image describe step before routing to the (text-only) downstream model.
 func TestVisionProxy_E2E_V1Messages(t *testing.T) {
-	baseURL := os.Getenv("TINGLY_BASE_URL")
 	apiKey := os.Getenv("TINGLY_API_KEY")
-	model := os.Getenv("TINGLY_MODEL")
-	if baseURL == "" || apiKey == "" || model == "" {
-		t.Skip("TINGLY_BASE_URL / TINGLY_API_KEY / TINGLY_MODEL must be set")
+	if apiKey == "" {
+		t.Skip("TINGLY_API_KEY not set — export it (and optionally TINGLY_BASE_URL / TINGLY_MODEL / TINGLY_IMAGE_PATH) to run")
 	}
+	baseURL := envOr("TINGLY_BASE_URL", defaultBaseURL)
+	model := envOr("TINGLY_MODEL", defaultModel)
 
 	mediaType, b64 := e2eImageSource(t)
 	t.Logf("e2e config: baseURL=%s model=%s mediaType=%s image_bytes_b64=%d",
@@ -98,9 +121,7 @@ func TestVisionProxy_E2E_V1Messages(t *testing.T) {
 			{
 				Role: anthropic.MessageParamRoleUser,
 				Content: []anthropic.ContentBlockParamUnion{
-					{OfText: &anthropic.TextBlockParam{
-						Text: "There's an image attached. Tell me what you see in it, in one short sentence.",
-					}},
+					{OfText: &anthropic.TextBlockParam{Text: defaultPrompt}},
 					anthropic.NewImageBlock(anthropic.Base64ImageSourceParam{
 						Data:      b64,
 						MediaType: anthropic.Base64ImageSourceMediaType(mediaType),
@@ -136,12 +157,12 @@ func TestVisionProxy_E2E_V1Messages(t *testing.T) {
 // wiring expectations as the v1 test; some clients send via Beta so we want
 // to confirm both shapes flow through the bypass.
 func TestVisionProxy_E2E_BetaMessages(t *testing.T) {
-	baseURL := os.Getenv("TINGLY_BASE_URL")
 	apiKey := os.Getenv("TINGLY_API_KEY")
-	model := os.Getenv("TINGLY_MODEL")
-	if baseURL == "" || apiKey == "" || model == "" {
-		t.Skip("TINGLY_BASE_URL / TINGLY_API_KEY / TINGLY_MODEL must be set")
+	if apiKey == "" {
+		t.Skip("TINGLY_API_KEY not set — export it (and optionally TINGLY_BASE_URL / TINGLY_MODEL / TINGLY_IMAGE_PATH) to run")
 	}
+	baseURL := envOr("TINGLY_BASE_URL", defaultBaseURL)
+	model := envOr("TINGLY_MODEL", defaultModel)
 
 	mediaType, b64 := e2eImageSource(t)
 
@@ -161,9 +182,7 @@ func TestVisionProxy_E2E_BetaMessages(t *testing.T) {
 			{
 				Role: anthropic.BetaMessageParamRoleUser,
 				Content: []anthropic.BetaContentBlockParamUnion{
-					{OfText: &anthropic.BetaTextBlockParam{
-						Text: "There's an image attached. Tell me what you see in it, in one short sentence.",
-					}},
+					{OfText: &anthropic.BetaTextBlockParam{Text: defaultPrompt}},
 					anthropic.NewBetaImageBlock(anthropic.BetaBase64ImageSourceParam{
 						Data:      b64,
 						MediaType: anthropic.BetaBase64ImageSourceMediaType(mediaType),
