@@ -68,9 +68,11 @@ pctx.Request : *anthropic.BetaMessageNewParams (or v1 / OpenAI)
        │       │
        │       ▼
        │   poolVisionClient (production adapter)
-       │     dispatches by provider.APIStyle:
-       │       "anthropic" → BetaMessagesNew (image block + prompt)
-       │       "openai"    → ChatCompletionsNew (image_url part + prompt)
+       │     dispatches by provider.APIStyle and ALWAYS uses streaming
+       │     (most providers require it for vision); deltas are
+       │     accumulated into a single string before returning:
+       │       "anthropic" → BetaMessagesNewStreaming → join text_deltas
+       │       "openai"    → ChatCompletionsNewStreaming → join Delta.Content
        │       other       → error → fail-strip marker
        ▼
   describe = "a red apple on a white plate"   (success)

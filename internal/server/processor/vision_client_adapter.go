@@ -83,7 +83,11 @@ func (a *poolVisionClient) describeViaAnthropic(ctx context.Context, provider *t
 	if c == nil {
 		return "", errors.New("vision adapter: pool returned nil anthropic client")
 	}
-	resp, err := c.BetaMessagesNew(ctx, &anthropic.BetaMessageNewParams{
+	// Streaming variant: most providers (especially proxy gateways and
+	// regional Anthropic-compatible vendors) require the streaming endpoint
+	// for vision requests. We accumulate every text_delta into a single
+	// string and return it as if it were a non-streaming response.
+	stream := c.BetaMessagesNewStreaming(ctx, &anthropic.BetaMessageNewParams{
 		Model:     anthropic.Model(model),
 		MaxTokens: defaultVisionMaxTokens,
 		Messages: []anthropic.BetaMessageParam{
@@ -96,14 +100,16 @@ func (a *poolVisionClient) describeViaAnthropic(ctx context.Context, provider *t
 			},
 		},
 	})
-	if err != nil {
-		return "", err
-	}
+	defer stream.Close()
 	var sb strings.Builder
-	for _, b := range resp.Content {
-		if b.Type == "text" {
-			sb.WriteString(b.Text)
+	for stream.Next() {
+		evt := stream.Current()
+		if evt.Type == "content_block_delta" && evt.Delta.Type == "text_delta" && evt.Delta.Text != "" {
+			sb.WriteString(evt.Delta.Text)
 		}
+	}
+	if err := stream.Err(); err != nil {
+		return "", err
 	}
 	return strings.TrimSpace(sb.String()), nil
 }
@@ -122,7 +128,11 @@ func (a *poolVisionClient) describeViaOpenAI(ctx context.Context, provider *typ.
 	if c == nil {
 		return "", errors.New("vision adapter: pool returned nil openai client")
 	}
-	resp, err := c.ChatCompletionsNew(ctx, openai.ChatCompletionNewParams{
+	// Streaming variant: many OpenAI-compatible vision endpoints
+	// (Qwen-VL, GLM-4V, custom proxies, etc.) only support streaming for
+	// multimodal inputs. We accumulate every content delta into a single
+	// string and return it as if it were a non-streaming response.
+	stream := c.ChatCompletionsNewStreaming(ctx, openai.ChatCompletionNewParams{
 		Model:     openai.ChatModel(model),
 		MaxTokens: openai.Int(defaultVisionMaxTokens),
 		Messages: []openai.ChatCompletionMessageParamUnion{
@@ -140,15 +150,20 @@ func (a *poolVisionClient) describeViaOpenAI(ctx context.Context, provider *typ.
 			},
 		},
 	})
-	if err != nil {
-		return "", err
-	}
-	for _, ch := range resp.Choices {
-		if text := strings.TrimSpace(ch.Message.Content); text != "" {
-			return text, nil
+	defer stream.Close()
+	var sb strings.Builder
+	for stream.Next() {
+		chunk := stream.Current()
+		for _, ch := range chunk.Choices {
+			if ch.Delta.Content != "" {
+				sb.WriteString(ch.Delta.Content)
+			}
 		}
 	}
-	return "", nil
+	if err := stream.Err(); err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(sb.String()), nil
 }
 
 // openAIImageURL builds the URL string OpenAI's image_url content part
