@@ -548,7 +548,11 @@ func sendResponsesEvent(c *gin.Context, event any, flusher http.Flusher) {
 	default:
 	}
 
-	OpenAISSE(c, event)
+	if e, ok := event.(responsesEvent); ok {
+		OpenAIResponsesEvent(c, e.EventType(), event)
+	} else {
+		OpenAISSE(c, event)
+	}
 }
 
 // sendResponsesErrorEvent sends an error event in Responses API format
