@@ -1292,7 +1292,17 @@ func (s *Server) SetupPassthroughAnthropicEndpoints(group *gin.RouterGroup) {
 	group.GET("/models", s.getModelAuthMiddleware(), s.AnthropicListModels)
 }
 
-// UseVirtualModelEndpoints sets up virtual model endpoints for testing
+// UseVirtualModelEndpoints sets up the direct virtual-model entrypoints
+// (/virtual and /virtual/v1). These bypass the provider/rule/scenario
+// pipeline and call the in-process handler directly — useful for smoke
+// tests and tooling that wants a fixed URL without configuring a provider.
+//
+// The canonical path for virtual models is now the standard /v1/messages
+// and /v1/chat/completions, where the dispatcher short-circuits to the
+// same handler when it resolves to a vmodel provider (see
+// HandleAnthropicMessages and HandleOpenAIChatCompletions). These /virtual
+// routes are retained for one release cycle for backward compatibility and
+// will be removed in a follow-up.
 func (s *Server) UseVirtualModelEndpoints() {
 	virtual := s.engine.Group("/virtual")
 	virtual.GET("/models", s.getModelAuthMiddleware(), s.virtualModelService.GetHandler().ListModels)
