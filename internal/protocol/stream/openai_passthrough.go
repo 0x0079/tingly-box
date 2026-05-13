@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -314,28 +315,19 @@ func HandleOpenAIResponsesStream(hc *protocol.HandleContext, stream *openaistrea
 	c.Header("Access-Control-Allow-Origin", "*")
 	c.Header("Access-Control-Allow-Headers", "Cache-Control")
 
-	flusher, ok := c.Writer.(http.Flusher)
-	if !ok {
-		return protocol.ZeroTokenUsage(), fmt.Errorf("streaming not supported by this connection")
-	}
-
 	var inputTokens, outputTokens, cacheTokens int64
 	var hasUsage bool
 
-	// MENTION: Do NOT replace this loop with c.Stream(). c.Stream() finalizes the HTTP response writer
-	// when it returns, so any writes after the loop (error events, etc.) are silently dropped.
-	// This manual loop + explicit flusher.Flush() keeps full control over connection lifetime.
-	for {
-		// Check context cancellation
+	StreamLoop(c, func(w io.Writer) bool {
 		select {
 		case <-c.Request.Context().Done():
 			logrus.Debug("Client disconnected, stopping Responses stream")
-			return protocol.NewTokenUsageWithCache(int(inputTokens), int(outputTokens), int(cacheTokens)), nil
+			return false
 		default:
 		}
 
 		if !stream.Next() {
-			break
+			return false
 		}
 
 		evt := stream.Current()
@@ -355,7 +347,6 @@ func HandleOpenAIResponsesStream(hc *protocol.HandleContext, stream *openaistrea
 		eventRaw := evt.RawJSON()
 		eventType := evt.Type
 
-		// Extract cached tokens using gjson
 		if gjson.Get(eventRaw, "response.usage.input_tokens_details").Exists() {
 			if cachedTokens := gjson.Get(eventRaw, "response.usage.input_tokens_details.cached_tokens"); cachedTokens.Exists() {
 				cacheTokens = cachedTokens.Int()
@@ -370,7 +361,6 @@ func HandleOpenAIResponsesStream(hc *protocol.HandleContext, stream *openaistrea
 			}
 		}
 
-		// Apply model override if the event contains a response object with a model field
 		if len(eventRaw) > 0 {
 			if model := gjson.Get(eventRaw, "response.model"); model.Exists() && model.String() != "" {
 				if modified, err := sjson.Set(eventRaw, "response.model", responseModel); err == nil {
@@ -380,8 +370,8 @@ func HandleOpenAIResponsesStream(hc *protocol.HandleContext, stream *openaistrea
 		}
 
 		OpenAIResponsesEvent(c, eventType, eventRaw)
-		flusher.Flush()
-	}
+		return true
+	})
 
 	if err := stream.Err(); err != nil {
 		if errors.Is(err, context.Canceled) || protocol.IsContextCanceled(err) {
@@ -398,7 +388,6 @@ func HandleOpenAIResponsesStream(hc *protocol.HandleContext, stream *openaistrea
 			},
 		}
 		OpenAIResponsesEvent(c, "error", errorChunk)
-		flusher.Flush()
 		return protocol.NewTokenUsageWithCache(int(inputTokens), int(outputTokens), int(cacheTokens)), err
 	}
 
