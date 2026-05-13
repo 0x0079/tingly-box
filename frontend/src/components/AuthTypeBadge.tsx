@@ -21,12 +21,18 @@ export const AuthTypeBadge = ({ authType, sx = {} }: AuthTypeBadgeProps) => {
                 return 'Bearer';
             case 'basic_auth':
                 return 'Basic';
+            case 'vmodel':
+                return 'Virtual';
             default:
                 return authType || 'Unknown';
         }
     };
 
     const label = getLabel();
+    // vmodel is selectable but should not compete visually with real
+    // credentials. Render it muted (text.secondary) rather than the regular
+    // success-tinted hover treatment.
+    const isVirtual = authType === 'vmodel';
 
     return (
         <Box
@@ -41,11 +47,14 @@ export const AuthTypeBadge = ({ authType, sx = {} }: AuthTypeBadgeProps) => {
                 textTransform: 'uppercase',
                 height: '20px',
                 minWidth: '60px',
+                color: isVirtual ? theme.palette.text.secondary : undefined,
                 transition: theme.transitions.create(['background-color', 'color', 'border-color'], {
                     duration: theme.transitions.duration.shorter,
                 }),
                 '&:hover': {
-                    backgroundColor: alpha(theme.palette.success.main, 0.15),
+                    backgroundColor: isVirtual
+                        ? alpha(theme.palette.text.secondary, 0.08)
+                        : alpha(theme.palette.success.main, 0.15),
                 },
                 ...sx,
             }}

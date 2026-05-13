@@ -20,7 +20,9 @@ export function useProviderGroups(providers: Provider[], singleProvider: Provide
     // Group and sort providers by auth_type
     const groupedProviders = useMemo(() => {
         const groups: { [key: string]: Provider[] } = {};
-        const authTypeOrder = ['oauth', 'api_key', 'bearer_token', 'basic_auth'];
+        // vmodel goes last: virtual providers are selectable but not the
+        // primary choice, so they cluster after real credentials.
+        const authTypeOrder = ['oauth', 'api_key', 'bearer_token', 'basic_auth', 'vmodel'];
 
         enabledProviders.forEach(provider => {
             const authType = provider.auth_type || 'api key';

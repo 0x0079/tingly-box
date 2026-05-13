@@ -1,0 +1,99 @@
+import { ApiStyleBadge } from '@/components/ApiStyleBadge.tsx';
+import {
+    Box,
+    Chip,
+    Paper,
+    Stack,
+    Switch,
+    Table,
+    TableBody,
+    TableCell,
+    TableContainer,
+    TableHead,
+    TableRow,
+    Tooltip,
+    Typography,
+} from '@mui/material';
+import type { Provider } from '../types/provider';
+
+interface VirtualModelsTableProps {
+    providers: Provider[];
+    onToggle?: (providerUuid: string) => void;
+}
+
+// VirtualModelsTable renders the builtin virtual-model providers as a
+// read-only list with a single actionable control: the enabled toggle.
+// Builtin providers are seeded by the backend on every startup so deletion
+// would just race back; mutation of name/base/etc. is rejected by the
+// CRUD layer. Only Enabled is user-controllable.
+const VirtualModelsTable = ({ providers, onToggle }: VirtualModelsTableProps) => {
+    return (
+        <TableContainer component={Paper} variant="outlined">
+            <Table size="small">
+                <TableHead>
+                    <TableRow>
+                        <TableCell sx={{ width: '30%' }}>Name</TableCell>
+                        <TableCell sx={{ width: '15%' }}>Protocol</TableCell>
+                        <TableCell>Models</TableCell>
+                        <TableCell sx={{ width: '12%' }} align="center">Enabled</TableCell>
+                    </TableRow>
+                </TableHead>
+                <TableBody>
+                    {providers.map((p) => {
+                        const models = p.vmodel_detail?.models ?? [];
+                        return (
+                            <TableRow key={p.uuid} hover>
+                                <TableCell>
+                                    <Stack direction="row" spacing={1} alignItems="center">
+                                        <Typography variant="body2" fontWeight={500}>
+                                            {p.name}
+                                        </Typography>
+                                        <Chip
+                                            label="Builtin"
+                                            size="small"
+                                            variant="outlined"
+                                            sx={{ height: 18, fontSize: '0.65rem', color: 'text.secondary' }}
+                                        />
+                                    </Stack>
+                                </TableCell>
+                                <TableCell>
+                                    <ApiStyleBadge apiStyle={p.api_style as any} compact />
+                                </TableCell>
+                                <TableCell>
+                                    {models.length === 0 ? (
+                                        <Typography variant="caption" color="text.secondary">
+                                            none registered
+                                        </Typography>
+                                    ) : (
+                                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                            {models.map((m) => (
+                                                <Chip
+                                                    key={m}
+                                                    label={m}
+                                                    size="small"
+                                                    variant="outlined"
+                                                    sx={{ height: 20, fontSize: '0.7rem' }}
+                                                />
+                                            ))}
+                                        </Box>
+                                    )}
+                                </TableCell>
+                                <TableCell align="center">
+                                    <Tooltip title={p.enabled ? 'Disable virtual models' : 'Enable virtual models'}>
+                                        <Switch
+                                            size="small"
+                                            checked={!!p.enabled}
+                                            onChange={() => onToggle?.(p.uuid!)}
+                                        />
+                                    </Tooltip>
+                                </TableCell>
+                            </TableRow>
+                        );
+                    })}
+                </TableBody>
+            </Table>
+        </TableContainer>
+    );
+};
+
+export default VirtualModelsTable;

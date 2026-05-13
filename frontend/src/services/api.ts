@@ -333,6 +333,25 @@ export const api = {
         }
     },
 
+    // List virtual models registered in the in-process registries.
+    // TODO: Regenerate swagger client to remove the raw fetch fallback once
+    // /api/v1/vmodel/available-models lands in the OpenAPI spec.
+    getAvailableVirtualModels: async (): Promise<any> => {
+        try {
+            const headers = await getAuthHeaders();
+            const response = await fetch(`${await getApiBaseUrl()}/api/v1/vmodel/available-models`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...headers,
+                },
+            });
+            return await response.json();
+        } catch (error: any) {
+            return {success: false, error: error.message};
+        }
+    },
+
     // Server control
     startServer: async (): Promise<any> => {
         try {
