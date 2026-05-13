@@ -67,6 +67,7 @@ const OPERATION_OPTIONS: Record<string, Array<{ value: string; label: string; de
     latest_user: [
         { value: 'contains', label: 'Contains', description: 'Latest user message contains the value', valueType: 'string' },
         // { value: 'type', label: 'Type', description: 'Latest user message content type (e.g., image)', valueType: 'string' },
+        { value: 'proxy_vision', label: 'Proxy Vision', description: 'Latest user has an image — vision-proxy processor describes it and the pipeline continues (implicit bypass)', valueType: 'bool' },
     ],
     tool_use: [
         { value: 'equals', label: 'Equals', description: 'Latest message is tool use and its name equals the value', valueType: 'string' },
