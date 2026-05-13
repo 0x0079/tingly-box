@@ -116,6 +116,8 @@ func (r *Router) evaluateOp(ctx *RequestContext, op *SmartOp) OpEvalResult {
 		return r.evaluateServiceCapacityOp(ctx, op)
 	case PositionAgentClaudeCode:
 		return r.evaluateAgentClaudeCodeOp(ctx, op)
+	case PositionProxyVision:
+		return r.evaluateProxyVisionOp(ctx, op)
 	default:
 		res := newOpResult(op)
 		res.Reason = fmt.Sprintf("unknown position %q", op.Position)
@@ -339,17 +341,25 @@ func (r *Router) evaluateLatestUserOp(ctx *RequestContext, op *SmartOp) OpEvalRe
 		res.Actual = ctx.LatestContentType
 		res.Matched = ctx.LatestContentType == value
 		res.Reason = fmt.Sprintf("latest content_type %q == %q", ctx.LatestContentType, value)
-	case OpLatestUserProxyVision:
-		// Pure predicate: matches when the latest user message contains an
-		// image. The side effect (calling the vision-proxy upstream) is
-		// triggered by SmartRoutingStage via the OpProcessor registry once
-		// the rule matches.
-		res.Actual = ctx.LatestContentType
-		res.Matched = ctx.LatestContentType == "image"
-		res.Reason = "latest user has image — vision proxy will run"
 	default:
 		res.Reason = fmt.Sprintf("unsupported latest_user op %q", op.Operation)
 	}
+	return res
+}
+
+// evaluateProxyVisionOp is a pure predicate: matches when the latest user
+// message contains an image. The side effect (calling the vision-proxy
+// upstream) is triggered by SmartRoutingStage via the OpProcessor registry
+// once the rule matches.
+func (r *Router) evaluateProxyVisionOp(ctx *RequestContext, op *SmartOp) OpEvalResult {
+	res := newOpResult(op)
+	if op.Operation != OpProxyVisionEnabled {
+		res.Reason = fmt.Sprintf("unsupported proxy_vision op %q", op.Operation)
+		return res
+	}
+	res.Actual = ctx.LatestContentType
+	res.Matched = ctx.LatestContentType == "image"
+	res.Reason = "latest user has image — vision proxy will run"
 	return res
 }
 

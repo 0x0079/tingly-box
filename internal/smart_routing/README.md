@@ -88,12 +88,13 @@ An **op** (`SmartOp`) is `Position + Operation + Value`:
 | `thinking` | thinking-enabled flag | `enabled`, `disabled` |
 | `context_system` | concatenated system messages | `contains`, `regex` |
 | `context_user` | concatenated user messages | `contains`, `regex` |
-| `latest_user` | latest user message + content type | `contains`, `type`, `proxy_vision` |
+| `latest_user` | latest user message + content type | `contains`, `type` |
 | `tool_use` | tool names from assistant messages | `equals` |
 | `token` | estimated token count (chars/4) | `ge`, `gt`, `le`, `lt` |
 | `service_ttft` | rule services' TTFT stats (ms) | `avg_le`, `avg_ge`, `max_le`, `max_ge` |
 | `service_capacity` | rule services' seat utilization (%) | `util_le`, `util_ge`, `util_lt`, `util_gt` |
 | `agent.claude_code` | detected Claude Code request kind | `equals` (`main` / `subagent` / `compact`) |
+| `proxy_vision` | latest user content type (image?) | `enabled` (toggle — see Op-level processors) |
 
 `service_ttft` and `service_capacity` are seeded per-rule before evaluation
 (`collectRuleStats` / `filterCapacityForRule`); both **pass** when the
@@ -131,7 +132,7 @@ that contains one, it:
 
 Processor implementations live in `internal/server/processor/`; they
 register at server boot via `processor.RegisterAll`. Only
-`latest_user.proxy_vision` ships in the first cut — see Use cases below.
+`proxy_vision.enabled` ships in the first cut — see Use cases below.
 
 ### Trace
 
@@ -217,19 +218,19 @@ SmartRouting{
 
 ### Make a text-only model accept image-bearing requests
 
-Use the `latest_user.proxy_vision` op. Its services list is the *upstream*
-the vision-proxy processor will call to describe images; the rule's match
-returns `(nil, false)` so the LoadBalancer picks the actual downstream
-model from the rule's main `Services`. Image content blocks are replaced
-in place with `[image: <description>]`; on any failure they are stripped
-with `[image: (description unavailable)]` so the downstream never sees an
+Use the top-level `proxy_vision.enabled` op. Its services list is the
+*upstream* the vision-proxy processor will call to describe images; the
+rule's match returns `(nil, false)` so the LoadBalancer picks the actual
+downstream model. Image content blocks are replaced in place with
+`[image: <description>]`; on any failure they are stripped with
+`[image: (description unavailable)]` so the downstream never sees an
 unsupported block.
 
 ```go
 SmartRouting{
     Description: "describe images so cheap text-only model can answer",
     Ops: []SmartOp{
-        {Position: PositionLatestUser, Operation: OpLatestUserProxyVision},
+        {Position: PositionProxyVision, Operation: OpProxyVisionEnabled},
     },
     // Vision-capable upstream (Anthropic-style provider).
     Services: []*loadbalance.Service{visionProvider},

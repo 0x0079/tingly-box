@@ -18,8 +18,8 @@ func RegisterAll(pool *client.ClientPool, resolver providerResolver, logger *log
 		Logger:   logger,
 	}
 	smartrouting.RegisterProcessor(
-		smartrouting.PositionLatestUser,
-		smartrouting.OpLatestUserProxyVision,
+		smartrouting.PositionProxyVision,
+		smartrouting.OpProxyVisionEnabled,
 		visionProc,
 	)
 }

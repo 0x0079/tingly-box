@@ -213,15 +213,15 @@ func walkContent(t *testing.T, req any) (images int, texts []string) {
 
 func TestRegisterProcessor_StoresAndLooksUp(t *testing.T) {
 	fake := &fakeOpProcessor{}
-	registerFakeProcessor(t, PositionLatestUser, OpLatestUserProxyVision, fake)
+	registerFakeProcessor(t, PositionProxyVision, OpProxyVisionEnabled, fake)
 
-	got, ok := LookupProcessor(PositionLatestUser, OpLatestUserProxyVision)
+	got, ok := LookupProcessor(PositionProxyVision, OpProxyVisionEnabled)
 	require.True(t, ok)
 	require.Same(t, OpProcessor(fake), got)
 }
 
 func TestLookupProcessor_MissingReturnsFalse(t *testing.T) {
-	got, ok := LookupProcessor(PositionLatestUser, "nonexistent_op_xyz")
+	got, ok := LookupProcessor(PositionProxyVision, "nonexistent_op_xyz")
 	require.False(t, ok)
 	require.Nil(t, got)
 }
@@ -233,12 +233,12 @@ func TestRegisterProcessor_OverwriteContract(t *testing.T) {
 	second := &fakeOpProcessor{}
 
 	const testOp SmartOpOperation = "harness_overwrite_op"
-	RegisterProcessor(PositionLatestUser, testOp, first)
-	t.Cleanup(func() { UnregisterProcessor(PositionLatestUser, testOp) })
+	RegisterProcessor(PositionProxyVision, testOp, first)
+	t.Cleanup(func() { UnregisterProcessor(PositionProxyVision, testOp) })
 
-	RegisterProcessor(PositionLatestUser, testOp, second)
+	RegisterProcessor(PositionProxyVision, testOp, second)
 
-	got, ok := LookupProcessor(PositionLatestUser, testOp)
+	got, ok := LookupProcessor(PositionProxyVision, testOp)
 	require.True(t, ok)
 	require.Same(t, OpProcessor(second), got, "second registration must replace the first")
 }
@@ -247,13 +247,13 @@ func TestRegisterProcessor_OverwriteContract(t *testing.T) {
 // Tests — op match (Phase B)
 // ---------------------------------------------------------------------------
 
-func TestEvaluateLatestUserProxyVision_MatchesWhenImagePresent(t *testing.T) {
+func TestEvaluateProxyVision_MatchesWhenImagePresent(t *testing.T) {
 	reqCtx := ExtractContext(betaReqWithImage("describe", tinyPNGBase64))
 	require.NotNil(t, reqCtx)
 
 	rules := []SmartRouting{{
 		Description: "vision proxy",
-		Ops:         []SmartOp{{Position: PositionLatestUser, Operation: OpLatestUserProxyVision}},
+		Ops:         []SmartOp{{Position: PositionProxyVision, Operation: OpProxyVisionEnabled}},
 		Services:    []*loadbalance.Service{{Provider: "p", Model: "m", Active: true}},
 	}}
 	r, err := NewRouter(rules)
@@ -264,13 +264,13 @@ func TestEvaluateLatestUserProxyVision_MatchesWhenImagePresent(t *testing.T) {
 	require.Equal(t, 0, idx)
 }
 
-func TestEvaluateLatestUserProxyVision_DoesNotMatchTextOnly(t *testing.T) {
+func TestEvaluateProxyVision_DoesNotMatchTextOnly(t *testing.T) {
 	reqCtx := ExtractContext(betaReqText("hello"))
 	require.NotNil(t, reqCtx)
 
 	rules := []SmartRouting{{
 		Description: "vision proxy",
-		Ops:         []SmartOp{{Position: PositionLatestUser, Operation: OpLatestUserProxyVision}},
+		Ops:         []SmartOp{{Position: PositionProxyVision, Operation: OpProxyVisionEnabled}},
 		Services:    []*loadbalance.Service{{Provider: "p", Model: "m", Active: true}},
 	}}
 	r, err := NewRouter(rules)

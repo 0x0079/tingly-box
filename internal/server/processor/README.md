@@ -20,12 +20,12 @@ boot (server.go)
         │     Resolver: resolver,
         │   }
         └─► smartrouting.RegisterProcessor(
-              PositionLatestUser,
-              OpLatestUserProxyVision,
+              PositionProxyVision,
+              OpProxyVisionEnabled,
               visionProc)
                   │
                   ▼
-            registry["latest_user|proxy_vision"] = visionProc
+            registry["proxy_vision|enabled"] = visionProc
 
 per request (internal/server/routing/stage_smart_routing.go)
   for op in matchedRule.Ops:

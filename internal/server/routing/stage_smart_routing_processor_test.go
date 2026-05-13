@@ -78,8 +78,8 @@ func betaReqWithImage(prompt string) *anthropic.BetaMessageNewParams {
 func proxyVisionOp() smartrouting.SmartOp {
 	return smartrouting.SmartOp{
 		UUID:      "proxy-vision-op",
-		Position:  smartrouting.PositionLatestUser,
-		Operation: smartrouting.OpLatestUserProxyVision,
+		Position:  smartrouting.PositionProxyVision,
+		Operation: smartrouting.OpProxyVisionEnabled,
 	}
 }
 
@@ -92,13 +92,13 @@ func TestSmartRoutingStage_ProcessorBypass_RunsProcessorAndContinues(t *testing.
 	// and the smart-routing stage must return (nil, false) so the pipeline
 	// continues to the next stage.
 	called := 0
-	smartrouting.RegisterProcessor(smartrouting.PositionLatestUser, smartrouting.OpLatestUserProxyVision,
+	smartrouting.RegisterProcessor(smartrouting.PositionProxyVision, smartrouting.OpProxyVisionEnabled,
 		processorFunc(func(_ *smartrouting.ProcessorContext) error {
 			called++
 			return nil
 		}))
 	t.Cleanup(func() {
-		smartrouting.UnregisterProcessor(smartrouting.PositionLatestUser, smartrouting.OpLatestUserProxyVision)
+		smartrouting.UnregisterProcessor(smartrouting.PositionProxyVision, smartrouting.OpProxyVisionEnabled)
 	})
 
 	services := []*loadbalance.Service{testService("provider-a", "vision-model", true)}
@@ -130,13 +130,13 @@ func TestSmartRoutingStage_NoProcessor_TerminalSelectionUnchanged(t *testing.T) 
 
 func TestSmartRoutingStage_BypassedRule_NotReentered(t *testing.T) {
 	called := 0
-	smartrouting.RegisterProcessor(smartrouting.PositionLatestUser, smartrouting.OpLatestUserProxyVision,
+	smartrouting.RegisterProcessor(smartrouting.PositionProxyVision, smartrouting.OpProxyVisionEnabled,
 		processorFunc(func(_ *smartrouting.ProcessorContext) error {
 			called++
 			return nil
 		}))
 	t.Cleanup(func() {
-		smartrouting.UnregisterProcessor(smartrouting.PositionLatestUser, smartrouting.OpLatestUserProxyVision)
+		smartrouting.UnregisterProcessor(smartrouting.PositionProxyVision, smartrouting.OpProxyVisionEnabled)
 	})
 
 	services := []*loadbalance.Service{testService("provider-a", "vision-model", true)}
@@ -156,7 +156,7 @@ func TestSmartRoutingStage_BypassedRule_NotReentered(t *testing.T) {
 func TestSmartRoutingStage_ProcessorMutatesRequest_LoadBalancerSeesMutation(t *testing.T) {
 	// Processor mutates ctx.Request; the next stage in the pipeline must see
 	// the mutated request.
-	smartrouting.RegisterProcessor(smartrouting.PositionLatestUser, smartrouting.OpLatestUserProxyVision,
+	smartrouting.RegisterProcessor(smartrouting.PositionProxyVision, smartrouting.OpProxyVisionEnabled,
 		processorFunc(func(pctx *smartrouting.ProcessorContext) error {
 			// Simulate vision-proxy mutation: drop image content blocks entirely.
 			if r, ok := pctx.Request.(*anthropic.BetaMessageNewParams); ok {
@@ -173,7 +173,7 @@ func TestSmartRoutingStage_ProcessorMutatesRequest_LoadBalancerSeesMutation(t *t
 			return nil
 		}))
 	t.Cleanup(func() {
-		smartrouting.UnregisterProcessor(smartrouting.PositionLatestUser, smartrouting.OpLatestUserProxyVision)
+		smartrouting.UnregisterProcessor(smartrouting.PositionProxyVision, smartrouting.OpProxyVisionEnabled)
 	})
 
 	services := []*loadbalance.Service{testService("provider-a", "vision-model", true)}

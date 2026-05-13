@@ -101,11 +101,16 @@ var Operations = []SmartOp{
 			Type:        ValueTypeString,
 		},
 	},
+
+	// Proxy Vision (top-level position) — describes images in image-bearing
+	// requests via the matched rule's services, then lets the pipeline route
+	// the now-text-only request downstream. Standalone position because the
+	// rule needs no value: either the bypass is on or it isn't.
 	{
-		Position:  PositionLatestUser,
-		Operation: OpLatestUserProxyVision,
+		Position:  PositionProxyVision,
+		Operation: OpProxyVisionEnabled,
 		Meta: SmartOpMeta{
-			Description: "Latest user has an image — vision-proxy processor will describe it and let the pipeline continue (implicit bypass)",
+			Description: "Enable the vision-proxy bypass: when the latest user message has an image, the matched rule's services describe it and the request continues downstream with image blocks replaced by text",
 			Type:        ValueTypeBool,
 		},
 	},
@@ -253,6 +258,7 @@ const (
 	PositionServiceTTFT     SmartOpPosition = "service_ttft"     // Service TTFT characteristics
 	PositionServiceCapacity SmartOpPosition = "service_capacity" // Service seat capacity (affinity utilization)
 	PositionAgentClaudeCode SmartOpPosition = "agent.claude_code" // Claude Code agent request kind (main / subagent / compact)
+	PositionProxyVision     SmartOpPosition = "proxy_vision"     // Vision-proxy bypass (image-bearing requests)
 )
 
 const (
@@ -274,9 +280,11 @@ const (
 	OpContextUserRegex    SmartOpOperation = "regex"    // Combined user messages match regex pattern
 
 	// Latest user message operations
-	OpLatestUserContains    SmartOpOperation = "contains"    // Latest user message contains the value
-	OpLatestUserRequestType SmartOpOperation = "type"        // Latest user message content type
-	OpLatestUserProxyVision SmartOpOperation = "proxy_vision" // Latest user has an image; trigger vision-proxy processor
+	OpLatestUserContains    SmartOpOperation = "contains" // Latest user message contains the value
+	OpLatestUserRequestType SmartOpOperation = "type"     // Latest user message content type
+
+	// Proxy Vision operations
+	OpProxyVisionEnabled SmartOpOperation = "enabled" // Vision-proxy bypass enabled (matches when latest user has an image)
 
 	// Tool use operations
 	OpToolUseEquals   SmartOpOperation = "equals"   // Latest message is `tool use` and its name equals the value
