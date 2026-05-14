@@ -396,45 +396,11 @@ func (env *AgentTestEnv) SetupVModelAgent(AgentType AgentType, vmodelID string) 
 		return fmt.Errorf("unknown Agent type: %s", AgentType)
 	}
 
-	cfg := env.appConfig.GetGlobalConfig()
-	if _, err := cfg.GetProviderByUUID(providerUUID); err != nil {
+	if _, err := env.appConfig.GetGlobalConfig().GetProviderByUUID(providerUUID); err != nil {
 		return fmt.Errorf("builtin vmodel provider %q not seeded: %w", providerUUID, err)
 	}
 
-	var builtinUUID, requestModel string
-	switch AgentType {
-	case AgentTypeClaudeCode:
-		builtinUUID, requestModel = "built-in-cc", "tingly/cc"
-	case AgentTypeCodex:
-		builtinUUID, requestModel = "built-in-codex", "tingly-codex"
-	case AgentTypeOpenCode:
-		builtinUUID, requestModel = "built-in-opencode", "tingly-opencode"
-	}
-
-	rule := typ.Rule{
-		UUID:          builtinUUID,
-		Scenario:      AgentType.Scenario(),
-		RequestModel:  requestModel,
-		ResponseModel: vmodelID,
-		Services: []*loadbalance.Service{
-			{
-				Provider: providerUUID,
-				Model:    vmodelID,
-				Weight:   1,
-				Active:   true,
-			},
-		},
-		LBTactic: typ.Tactic{
-			Type:   loadbalance.TacticRandom,
-			Params: typ.DefaultRandomParams(),
-		},
-		Active: true,
-	}
-
-	if err := cfg.UpdateRequestConfigByUUID(builtinUUID, rule); err != nil {
-		return fmt.Errorf("update rule: %w", err)
-	}
-	return nil
+	return env.repointBuiltinRule(AgentType, providerUUID, vmodelID)
 }
 
 // AppConfig returns the application configuration
