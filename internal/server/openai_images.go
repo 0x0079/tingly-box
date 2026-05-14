@@ -114,16 +114,6 @@ func (s *Server) HandleOpenAIImageGeneration(c *gin.Context) {
 		return
 	}
 
-	if provider.APIStyle != protocol.APIStyleOpenAI {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error: ErrorDetail{
-				Message: fmt.Sprintf("unsupported provider api style for image generation: %s", provider.APIStyle),
-				Type:    "invalid_request_error",
-			},
-		})
-		return
-	}
-
 	actualModel := selectedService.Model
 	req.Model = openai.ImageModel(actualModel)
 
@@ -132,9 +122,13 @@ func (s *Server) HandleOpenAIImageGeneration(c *gin.Context) {
 
 	SetTrackingContext(c, rule, provider, actualModel, responseModel, false)
 
-	wrapper := s.clientPool.GetOpenAIClient(c.Request.Context(), provider, actualModel)
 	fc := forwarding.NewForwardContext(c.Request.Context(), provider)
 
+	// The OpenAI client wrapper handles vendor fragmentation internally:
+	// OpenAI-compatible providers go straight through the SDK, DashScope and
+	// MiniMax are dispatched to their native imagegen adapters, and Codex
+	// (ChatGPT OAuth) rides the Responses API. The handler stays uniform.
+	wrapper := s.clientPool.GetOpenAIClient(c.Request.Context(), provider, actualModel)
 	resp, cancel, err := forwarding.ForwardOpenAIImageGeneration(fc, wrapper, &req)
 	if cancel != nil {
 		defer cancel()
