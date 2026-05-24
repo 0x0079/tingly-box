@@ -7,10 +7,8 @@ import {
     Divider,
     Typography,
 } from '@mui/material';
-import {
-    PlayArrow as DirectIcon,
-    Stream as StreamingIcon,
-} from '@mui/icons-material';
+import { IconPlayerPlay, IconWaveSine } from '@tabler/icons-react';
+import { MuiTablerIcon } from '@/components/icons/MuiTablerIcon';
 import { useTranslation } from 'react-i18next';
 import { ProbeV2Dialog } from './ProbeV2Dialog';
 import type { ProbeV2TestMode, ProbeV2TargetType } from '@/types/probe-v2.ts';
@@ -37,13 +35,13 @@ const PROBE_OPTIONS: ProbeOption[] = [
     {
         mode: 'simple',
         label: 'Direct Test',
-        icon: <DirectIcon fontSize="small" />,
+        icon: <MuiTablerIcon icon={IconPlayerPlay} fontSize="small" />,
         description: 'Send a simple non-streaming request',
     },
     {
         mode: 'streaming',
         label: 'Streaming Test',
-        icon: <StreamingIcon fontSize="small" />,
+        icon: <MuiTablerIcon icon={IconWaveSine} fontSize="small" />,
         description: 'Stream the response in real-time',
     },
 ];
